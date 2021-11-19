@@ -76,6 +76,49 @@ mod tests {
         lex(file);
     }
 
+    #[test]
+    fn simple_numbers() {
+        let file =
+"123 0.12341 --a comment
+    .1234
+1.1235";
+
+        assert_eq!(lex(file), vec![
+            T::Number("123".to_owned()),
+            T::Number("0.12341".to_owned()),
+            T::Indent("    ".to_owned()),
+            T::Number(".1234".to_owned()),
+            T::Number("1.1235".to_owned()),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Unexpected character '.' (line 1, column 2)")]
+    fn double_dots() { lex(".."); }
+
+    #[test]
+    #[should_panic(expected = "Unexpected character '.' (line 1, column 5)")]
+    fn double_decimals1() { lex(".123."); }
+
+
+    #[test]
+    #[should_panic(expected = "Unexpected character '.' (line 1, column 6)")]
+    fn double_decimals2() { lex("1.123."); }
+
+    //#[test]
+    fn simple_identifiers() {
+        let file =
+"identifier1 ident2 --a comment
+    ident3";
+
+        assert_eq!(lex(file), vec![
+            T::Identifier("identifier1".to_owned()),
+            T::Identifier("ident2".to_owned()),
+            T::Indent("    ".to_owned()),
+            T::Identifier("ident3".to_owned()),
+        ]);
+    }
+
     //#[test]
     fn good_file() {
         let file =
