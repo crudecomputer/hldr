@@ -105,18 +105,24 @@ mod tests {
     #[should_panic(expected = "Unexpected character '.' (line 1, column 6)")]
     fn double_decimals2() { lex("1.123."); }
 
-    //#[test]
+    #[test]
     fn simple_identifiers() {
         let file =
-"identifier1 ident2 --a comment
-    ident3";
+"identifier1 ident_ifier2 --a comment
+    _ident3";
 
         assert_eq!(lex(file), vec![
             T::Identifier("identifier1".to_owned()),
-            T::Identifier("ident2".to_owned()),
+            T::Identifier("ident_ifier2".to_owned()),
             T::Indent("    ".to_owned()),
-            T::Identifier("ident3".to_owned()),
+            T::Identifier("_ident3".to_owned()),
         ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Unexpected character 'a' (line 1, column 2)")]
+    fn identifier_cant_start_with_number() {
+        lex("1asdf");
     }
 
     //#[test]

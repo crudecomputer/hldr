@@ -5,7 +5,7 @@ pub enum State {
     ExpectingComment,
     Comment,
     Indent,
-    //Identifier,
+    Identifier,
     Integer,
     Decimal,
     LineStart,
@@ -62,8 +62,20 @@ impl Machine {
 
                     State::ExpectingComment => match c {
                         '-' => {
-                            self.stack.clear();
                             State::Comment
+                        }
+                        _ => unexpected(),
+                    }
+
+                    State::Identifier => match c {
+                        c if valid_identifier_char(c) => {
+                            self.stack.push(c);
+                            State::Identifier
+                        }
+                        ' ' | '\t' => {
+                            let ident: String = self.stack.drain(..).collect();
+                            self.tokens.push(Token::Identifier(ident));
+                            State::Whitespace
                         }
                         _ => unexpected(),
                     }
@@ -79,7 +91,6 @@ impl Machine {
 
                             match c {
                                 '-' => {
-                                    self.stack.push(c);
                                     State::ExpectingComment
                                 }
                                 '0'..='9' => {
@@ -89,6 +100,10 @@ impl Machine {
                                 '.' => {
                                     self.stack.push(c);
                                     State::Decimal
+                                }
+                                c if valid_identifier_char(c) => {
+                                    self.stack.push(c);
+                                    State::Identifier
                                 }
                                 _ => unexpected(),
                             }
@@ -114,7 +129,6 @@ impl Machine {
 
                     State::LineStart => match c {
                         '-' => {
-                            self.stack.push(c);
                             State::ExpectingComment
                         }
                         ' ' | '\t' => {
@@ -129,13 +143,16 @@ impl Machine {
                             self.stack.push(c);
                             State::Decimal
                         }
+                        c if valid_identifier_char(c) => {
+                            self.stack.push(c);
+                            State::Identifier
+                        }
                         _ => unexpected(),
                     }
 
                     State::Whitespace => match c {
                         ' ' | '\t' => State::Whitespace,
                         '-' => {
-                            self.stack.push(c);
                             State::ExpectingComment
                         }
                         '0'..='9' => {
@@ -146,6 +163,10 @@ impl Machine {
                             self.stack.push(c);
                             State::Decimal
                         }
+                        c if valid_identifier_char(c) => {
+                            self.stack.push(c);
+                            State::Identifier
+                        }
                         _ => unexpected(),
                     }
                 }
@@ -153,6 +174,10 @@ impl Machine {
             }
 
             match self.state {
+                State::Identifier => {
+                    let ident: String = self.stack.drain(..).collect();
+                    self.tokens.push(Token::Identifier(ident));
+                }
                 State::Indent => {
                     let indent: String = self.stack.drain(..).collect();
                     self.tokens.push(Token::Indent(indent));
@@ -168,5 +193,44 @@ impl Machine {
             }
         }
         println!("{:#?}", self);
+    }
+}
+
+fn valid_identifier_char(c: char) -> bool {
+    c == '_' || (
+        !c.is_control() &&
+        !c.is_whitespace() &&
+        !c.is_ascii_punctuation()
+    )
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn valid_identifier_chars() {
+        use super::valid_identifier_char as valid;
+
+        for c in 'a'..'z' {
+            assert!(valid(c), "{}", c);
+        }
+        for c in 'A'..'Z' {
+            assert!(valid(c), "{}", c);
+        }
+        for c in '0'..'9' {
+            assert!(valid(c), "{}", c);
+        }
+
+        assert!(valid('_'));
+        assert!(valid('💝'));
+
+        for c in [
+            '`', '~', '!', '@', '#', '$', '%', '^', '&', '*',
+            '(', ')', '-', '=', '+', '[', '{', ']', '}', '\\',
+            '|', ';', ':', '\'', '"', ',', '<', '.', '>', '/',
+            '?',
+        ] {
+            assert!(!valid(c), "{}", c);
+        }
     }
 }
