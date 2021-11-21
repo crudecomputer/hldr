@@ -10,6 +10,7 @@ pub enum Token {
     Identifier(String),
     Indent(String),
     Number(String),
+    QuotedIdentifier(String),
     Text(String),
     Underscore,
 }
@@ -125,10 +126,51 @@ mod tests {
         lex("1asdf");
     }
 
+    #[test]
+    fn quoted_identifiers() {
+        let file =
+r#""some identifier" ident_ifier2 -- a "quoted comment"
+    "-- another""@""""identifier"
+"#;
+
+        assert_eq!(lex(file), vec![
+            T::QuotedIdentifier("some identifier".to_owned()),
+            T::Identifier("ident_ifier2".to_owned()),
+            T::Indent("    ".to_owned()),
+            T::QuotedIdentifier(r#"-- another"@""identifier"#.to_owned()),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Quoted identifier not closed (line 1, column 5)")]
+    fn unclosed_quoted_identifier() {
+        lex("\"asdf");
+    }
+
+    #[test]
+    fn test_strings() {
+        let file =
+"'some string'
+'another''s string' too 'and again'";
+
+        assert_eq!(lex(file), vec![
+            T::Text("some string".to_owned()),
+            T::Text("another's string".to_owned()),
+            T::Identifier("too".to_owned()),
+            T::Text("and again".to_owned()),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "String not closed (line 1, column 5)")]
+    fn unclosed_string() {
+        lex("'asdf");
+    }
+
     //#[test]
     fn good_file() {
         let file =
-"public
+r#"public
   -- This is a newline comment
   pet
     cupid:
@@ -144,12 +186,13 @@ mod tests {
     kevin:
       name 'Kevin'
       age 38
+      favorite_book 'Cat''s Cradle'
 
-schema1
+"quoted @ schema"
   message
     _:
       text 'Hello, world!'
-";
+"#;
 
         assert_eq!(lex(file), vec![
             T::Identifier("public".to_owned()),
@@ -195,8 +238,10 @@ schema1
             indent("      "),
             T::Identifier("age".to_owned()),
             T::Number("38".to_owned()),
+            T::Identifier("favorite_book".to_owned()),
+            T::Text("Cat's Cradle".to_owned()),
 
-            T::Identifier("schema1".to_owned()),
+            T::QuotedIdentifier("quoted @ schema".to_owned()),
 
             indent("  "),
             T::Identifier("message".to_owned()),

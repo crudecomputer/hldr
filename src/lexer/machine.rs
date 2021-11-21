@@ -9,6 +9,10 @@ pub enum State {
     Integer,
     Decimal,
     LineStart,
+    QuotedIdentifierOpen,
+    QuotedIdentifierClosed,
+    TextOpen,
+    TextClosed,
     Whitespace,
 }
 
@@ -90,6 +94,12 @@ impl Machine {
                             self.tokens.push(Token::Indent(indent));
 
                             match c {
+                                '"' => {
+                                    State::QuotedIdentifierOpen
+                                }
+                                '\'' => {
+                                    State::TextOpen
+                                }
                                 '-' => {
                                     State::ExpectingComment
                                 }
@@ -128,6 +138,12 @@ impl Machine {
                     }
 
                     State::LineStart => match c {
+                        '"' => {
+                            State::QuotedIdentifierOpen
+                        }
+                        '\'' => {
+                            State::TextOpen
+                        }
                         '-' => {
                             State::ExpectingComment
                         }
@@ -150,8 +166,62 @@ impl Machine {
                         _ => unexpected(),
                     }
 
+                    State::QuotedIdentifierOpen => match c {
+                        '"' => {
+                            State::QuotedIdentifierClosed
+                        }
+                        _ => {
+                            self.stack.push(c);
+                            State::QuotedIdentifierOpen
+                        }
+                    }
+
+                    State::QuotedIdentifierClosed => match c {
+                        '"' => {
+                            self.stack.push('"');
+                            State::QuotedIdentifierOpen
+                        }
+                        ' ' | '\t' => {
+                            let text: String = self.stack.drain(..).collect();
+                            self.tokens.push(Token::QuotedIdentifier(text));
+                            State::Whitespace
+                        }
+                        _ => unexpected()
+                    }
+
+                    State::TextOpen => match c {
+                        '\'' => {
+                            State::TextClosed
+                        }
+                        _ => {
+                            self.stack.push(c);
+                            State::TextOpen
+                        }
+                    }
+
+                    State::TextClosed => match c {
+                        '\'' => {
+                            self.stack.push('\'');
+                            State::TextOpen
+                        }
+                        ' ' | '\t' => {
+                            let text: String = self.stack.drain(..).collect();
+                            self.tokens.push(Token::Text(text));
+                            State::Whitespace
+                        }
+                        _ => unexpected()
+                    }
+
                     State::Whitespace => match c {
-                        ' ' | '\t' => State::Whitespace,
+                        ' ' | '\t' => {
+                            State::Whitespace
+                        }
+                        '"' => {
+                            State::QuotedIdentifierOpen
+                        }
+                        '\'' => {
+                            State::TextOpen
+                        }
                         '-' => {
                             State::ExpectingComment
                         }
@@ -187,7 +257,33 @@ impl Machine {
                     self.tokens.push(Token::Number(num));
                 }
                 State::ExpectingComment => {
-                    panic!("Expected comment (line {}, column {})", line_num + 1, last_char_num + 1);
+                    panic!(
+                        "Expected comment (line {}, column {})",
+                        line_num + 1,
+                        last_char_num + 1,
+                    );
+                }
+                State::QuotedIdentifierOpen => {
+                    panic!(
+                        "Quoted identifier not closed (line {}, column {})",
+                        line_num + 1,
+                        last_char_num + 1,
+                    )
+                }
+                State::QuotedIdentifierClosed => {
+                    let text: String = self.stack.drain(..).collect();
+                    self.tokens.push(Token::QuotedIdentifier(text));
+                }
+                State::TextOpen => {
+                    panic!(
+                        "String not closed (line {}, column {})",
+                        line_num + 1,
+                        last_char_num + 1,
+                    )
+                }
+                State::TextClosed => {
+                    let text: String = self.stack.drain(..).collect();
+                    self.tokens.push(Token::Text(text));
                 }
                 _ => {}
             }
@@ -198,6 +294,8 @@ impl Machine {
 
 fn valid_identifier_char(c: char) -> bool {
     c == '_' || (
+        // "alphabetic" isn't enough because that precludes other unicode chars
+        // that are valid in postgres identifiers
         !c.is_control() &&
         !c.is_whitespace() &&
         !c.is_ascii_punctuation()
@@ -223,6 +321,11 @@ mod tests {
 
         assert!(valid('_'));
         assert!(valid('💝'));
+    }
+
+    #[test]
+    fn invalid_identifier_chars() {
+        use super::valid_identifier_char as valid;
 
         for c in [
             '`', '~', '!', '@', '#', '$', '%', '^', '&', '*',
