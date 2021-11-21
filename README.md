@@ -17,14 +17,21 @@ languages, dependencies, or verbose factory classes.
 Singular records can easily be created, and they can be named or anonymous.
 
 ```
-public:
-  person:
+public
+  person -- Table name
     stacey:
       name 'Stacey'
 
     _:
       name 'Kevin'
       age 38
+
+-- For schema and/or table names with whitespace, use double quotes
+"schema name with spaces"
+  -- Bare identifiers are not converted to lowercase as they are in SQL
+  SomeTable
+    _:
+      id 1
 ```
 
 ### References
