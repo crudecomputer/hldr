@@ -312,6 +312,34 @@ fn valid_identifier_char(c: char) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn identifier_tokens() {
+        use super::{identifier_to_token, Token as T};
+
+        let assert = |s: &str, token: T| assert_eq!(
+            identifier_to_token(s.to_owned()),
+            token,
+            "{} - {:?}",
+            s,
+            token,
+        );
+
+        for x in ["true", "t"] {
+            assert(x, T::Boolean(true));
+        }
+
+        for x in ["false", "f"] {
+            assert(x, T::Boolean(false));
+        }
+
+        for x in [
+            "T", "True", "TRUE",
+            "F", "False", "FALSE",
+            "anything", "else",
+        ] {
+            assert(x, T::Identifier(x.to_owned()));
+        }
+    }
 
     #[test]
     fn valid_identifier_chars() {
