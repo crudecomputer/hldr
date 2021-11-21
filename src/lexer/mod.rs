@@ -6,7 +6,6 @@ use machine::Machine;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Boolean(bool),
-    Colon,
     Identifier(String),
     Indent(String),
     Number(String),
@@ -193,24 +192,24 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
 r#"public
   -- This is a newline comment
   pet
-    cupid:
+    cupid
       name 'Cupid' -- This is a trailing comment
       species 'cat'
       lap_cat true
 
-    _:
+    _
       name 'Eiyre'
       lap_cat false
 
   person
-    kevin:
+    kevin
       name 'Kevin'
       age 38
       favorite_book 'Cat''s Cradle'
 
 "quoted @ schema"
   message
-    _:
+    _
       text 'Hello, world!'
 "#;
 
@@ -222,7 +221,6 @@ r#"public
 
             indent("    "),
             T::Identifier("cupid".to_owned()),
-            T::Colon,
 
             indent("      "),
             T::Identifier("name".to_owned()),
@@ -236,7 +234,6 @@ r#"public
 
             indent("    "),
             T::Underscore,
-            T::Colon,
 
             indent("      "),
             T::Identifier("name".to_owned()),
@@ -250,7 +247,6 @@ r#"public
 
             indent("    "),
             T::Identifier("kevin".to_owned()),
-            T::Colon,
 
             indent("      "),
             T::Identifier("name".to_owned()),
@@ -268,7 +264,6 @@ r#"public
 
             indent("    "),
             T::Underscore,
-            T::Colon,
 
             indent("      "),
             T::Identifier("text".to_owned()),
