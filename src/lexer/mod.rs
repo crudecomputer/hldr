@@ -226,7 +226,7 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
         ]);
     }
 
-    //#[test]
+    #[test]
     fn good_file() {
         let file =
 r#"public
@@ -297,6 +297,8 @@ r#"public
             indent("      "),
             T::Identifier("lap_cat".to_owned()),
             T::Boolean(false),
+            T::Newline,
+
             T::Newline,
 
             indent("  "),
