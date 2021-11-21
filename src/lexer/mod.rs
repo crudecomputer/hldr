@@ -42,11 +42,11 @@ mod tests {
         let file = "  \n\n \t \n\t  \n\n   \n\t";
 
         assert_eq!(lex(file), vec![
-            T::Indent("  ".to_owned()),
-            T::Indent(" \t ".to_owned()),
-            T::Indent("\t  ".to_owned()),
-            T::Indent("   ".to_owned()),
-            T::Indent("\t".to_owned()),
+            indent("  "),
+            indent(" \t "),
+            indent("\t  "),
+            indent("   "),
+            indent("\t"),
         ]);
     }
 
@@ -55,7 +55,7 @@ mod tests {
         let file = "-- a comment\n  -- another comment\n";
 
         assert_eq!(lex(file), vec![
-            T::Indent("  ".to_owned()),
+            indent("  "),
         ]);
     }
 
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(lex(file), vec![
             T::Number("123".to_owned()),
             T::Number("0.12341".to_owned()),
-            T::Indent("    ".to_owned()),
+            indent("    "),
             T::Number(".1234".to_owned()),
             T::Number("1.1235".to_owned()),
         ]);
@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(lex(file), vec![
             T::Identifier("identifier1".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
-            T::Indent("    ".to_owned()),
+            indent("    "),
             T::Identifier("_ident3".to_owned()),
         ]);
     }
@@ -134,11 +134,11 @@ mod tests {
             T::Boolean(true),
             T::Identifier("T".to_owned()),
             T::Boolean(true),
-            T::Indent("\t".to_owned()),
+            indent("\t"),
             T::Identifier("True".to_owned()),
             T::Identifier("TRUE".to_owned()),
             T::Boolean(false),
-            T::Indent("  ".to_owned()),
+            indent("  "),
             T::Identifier("F".to_owned()),
             T::Boolean(false),
             T::Identifier("False".to_owned()),
@@ -156,7 +156,7 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
         assert_eq!(lex(file), vec![
             T::QuotedIdentifier("some identifier".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
-            T::Indent("    ".to_owned()),
+            indent("    "),
             T::QuotedIdentifier(r#"-- another"@""identifier"#.to_owned()),
         ]);
     }
