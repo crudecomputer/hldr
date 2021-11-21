@@ -127,6 +127,26 @@ mod tests {
     }
 
     #[test]
+    fn bools() {
+        let file = "t T true\n\tTrue TRUE f \n  F false False FALSE";
+
+        assert_eq!(lex(file), vec![
+            T::Boolean(true),
+            T::Identifier("T".to_owned()),
+            T::Boolean(true),
+            T::Indent("\t".to_owned()),
+            T::Identifier("True".to_owned()),
+            T::Identifier("TRUE".to_owned()),
+            T::Boolean(false),
+            T::Indent("  ".to_owned()),
+            T::Identifier("F".to_owned()),
+            T::Boolean(false),
+            T::Identifier("False".to_owned()),
+            T::Identifier("FALSE".to_owned()),
+        ])
+    }
+
+    #[test]
     fn quoted_identifiers() {
         let file =
 r#""some identifier" ident_ifier2 -- a "quoted comment"

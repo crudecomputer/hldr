@@ -78,7 +78,7 @@ impl Machine {
                         }
                         ' ' | '\t' => {
                             let ident: String = self.stack.drain(..).collect();
-                            self.tokens.push(Token::Identifier(ident));
+                            self.tokens.push(identifier_to_token(ident));
                             State::Whitespace
                         }
                         _ => unexpected(),
@@ -246,7 +246,7 @@ impl Machine {
             match self.state {
                 State::Identifier => {
                     let ident: String = self.stack.drain(..).collect();
-                    self.tokens.push(Token::Identifier(ident));
+                    self.tokens.push(identifier_to_token(ident));
                 }
                 State::Indent => {
                     let indent: String = self.stack.drain(..).collect();
@@ -289,6 +289,14 @@ impl Machine {
             }
         }
         println!("{:#?}", self);
+    }
+}
+
+fn identifier_to_token(s: String) -> Token {
+    match s.as_ref() {
+        "true"  | "t" => Token::Boolean(true),
+        "false" | "f" => Token::Boolean(false),
+        _ => Token::Identifier(s),
     }
 }
 
