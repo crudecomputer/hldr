@@ -8,6 +8,7 @@ pub enum Token {
     Boolean(bool),
     Identifier(String),
     Indent(String),
+    Newline,
     Number(String),
     QuotedIdentifier(String),
     Text(String),
@@ -42,10 +43,17 @@ mod tests {
 
         assert_eq!(lex(file), vec![
             indent("  "),
+            T::Newline,
+            T::Newline,
             indent(" \t "),
+            T::Newline,
             indent("\t  "),
+            T::Newline,
+            T::Newline,
             indent("   "),
+            T::Newline,
             indent("\t"),
+            T::Newline,
         ]);
     }
 
@@ -54,7 +62,9 @@ mod tests {
         let file = "-- a comment\n  -- another comment\n";
 
         assert_eq!(lex(file), vec![
+            T::Newline,
             indent("  "),
+            T::Newline,
         ]);
     }
 
@@ -86,9 +96,12 @@ mod tests {
         assert_eq!(lex(file), vec![
             T::Number("123".to_owned()),
             T::Number("0.12341".to_owned()),
+            T::Newline,
             indent("    "),
             T::Number(".1234".to_owned()),
+            T::Newline,
             T::Number("1.1235".to_owned()),
+            T::Newline,
         ]);
     }
 
@@ -114,8 +127,10 @@ mod tests {
         assert_eq!(lex(file), vec![
             T::Identifier("identifier1".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
+            T::Newline,
             indent("    "),
             T::Identifier("_ident3".to_owned()),
+            T::Newline,
         ]);
     }
 
@@ -133,15 +148,18 @@ mod tests {
             T::Boolean(true),
             T::Identifier("T".to_owned()),
             T::Boolean(true),
+            T::Newline,
             indent("\t"),
             T::Identifier("True".to_owned()),
             T::Identifier("TRUE".to_owned()),
             T::Boolean(false),
+            T::Newline,
             indent("  "),
             T::Identifier("F".to_owned()),
             T::Boolean(false),
             T::Identifier("False".to_owned()),
             T::Identifier("FALSE".to_owned()),
+            T::Newline,
         ])
     }
 
@@ -155,8 +173,10 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
         assert_eq!(lex(file), vec![
             T::QuotedIdentifier("some identifier".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
+            T::Newline,
             indent("    "),
             T::QuotedIdentifier(r#"-- another"@""identifier"#.to_owned()),
+            T::Newline,
         ]);
     }
 
@@ -174,9 +194,11 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
 
         assert_eq!(lex(file), vec![
             T::Text("some string".to_owned()),
+            T::Newline,
             T::Text("another's string".to_owned()),
             T::Identifier("too".to_owned()),
             T::Text("and again".to_owned()),
+            T::Newline,
         ]);
     }
 
@@ -184,6 +206,24 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
     #[should_panic(expected = "String not closed (line 1, column 5)")]
     fn unclosed_string() {
         lex("'asdf");
+    }
+
+    #[test]
+    fn underscore_after_indent() {
+        assert_eq!(lex("\t_"), vec![
+            indent("\t"),
+            T::Underscore,
+            T::Newline,
+        ]);
+    }
+
+    #[test]
+    fn underscore_with_comment() {
+        assert_eq!(lex("\t_ -- some comment"), vec![
+            indent("\t"),
+            T::Underscore,
+            T::Newline,
+        ]);
     }
 
     //#[test]
@@ -215,59 +255,90 @@ r#"public
 
         assert_eq!(lex(file), vec![
             T::Identifier("public".to_owned()),
+            T::Newline,
+
+            indent("  "),
+            T::Newline,
 
             indent("  "),
             T::Identifier("pet".to_owned()),
+            T::Newline,
 
             indent("    "),
             T::Identifier("cupid".to_owned()),
+            T::Newline,
 
             indent("      "),
             T::Identifier("name".to_owned()),
             T::Text("Cupid".to_owned()),
+            T::Newline,
+
             indent("      "),
             T::Identifier("species".to_owned()),
             T::Text("cat".to_owned()),
+            T::Newline,
+
             indent("      "),
             T::Identifier("lap_cat".to_owned()),
             T::Boolean(true),
+            T::Newline,
+
+            T::Newline,
 
             indent("    "),
             T::Underscore,
+            T::Newline,
 
             indent("      "),
             T::Identifier("name".to_owned()),
             T::Text("Eiyre".to_owned()),
+            T::Newline,
+
             indent("      "),
             T::Identifier("lap_cat".to_owned()),
             T::Boolean(false),
+            T::Newline,
 
             indent("  "),
             T::Identifier("person".to_owned()),
+            T::Newline,
 
             indent("    "),
             T::Identifier("kevin".to_owned()),
+            T::Newline,
 
             indent("      "),
             T::Identifier("name".to_owned()),
             T::Text("Kevin".to_owned()),
+            T::Newline,
+
             indent("      "),
             T::Identifier("age".to_owned()),
             T::Number("38".to_owned()),
+            T::Newline,
+
+            indent("      "),
             T::Identifier("favorite_book".to_owned()),
             T::Text("Cat's Cradle".to_owned()),
+            T::Newline,
+
+            T::Newline,
 
             T::QuotedIdentifier("quoted @ schema".to_owned()),
+            T::Newline,
 
             indent("  "),
             T::Identifier("message".to_owned()),
+            T::Newline,
 
             indent("    "),
             T::Underscore,
+            T::Newline,
 
             indent("      "),
             T::Identifier("text".to_owned()),
             T::Text("Hello, world!".to_owned()),
+            T::Newline,
         ]);
     }
 }

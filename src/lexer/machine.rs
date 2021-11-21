@@ -287,13 +287,15 @@ impl Machine {
                 }
                 _ => {}
             }
+
+            self.tokens.push(Token::Newline);
         }
-        println!("{:#?}", self);
     }
 }
 
 fn identifier_to_token(s: String) -> Token {
     match s.as_ref() {
+        "_" => Token::Underscore,
         "true"  | "t" => Token::Boolean(true),
         "false" | "f" => Token::Boolean(false),
         _ => Token::Identifier(s),
@@ -323,6 +325,8 @@ mod tests {
             s,
             token,
         );
+
+        assert("_", T::Underscore);
 
         for x in ["true", "t"] {
             assert(x, T::Boolean(true));
