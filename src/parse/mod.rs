@@ -1,22 +1,3 @@
-
-
-/*
-schema
-  table
-    name1
-      col1 val
-      col2 val
-
-    name2
-      col1 val
-
-    _
-      col1 val
-      col2 val
-      col3 val
-
-
-*/
 mod parser;
 
 use super::lex::Token;
