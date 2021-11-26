@@ -512,24 +512,37 @@ mod tests {
         ]);
     }
 
-    //#[test]
-    fn single_record() {
+    #[test]
+    #[should_panic(expected = "Unexpected token")]
+    fn invalid_records() {
+        let tokens = vec![
+            T::Identifier("schema1".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("record1".to_owned()),
+            T::Identifier("another_identifier".to_owned()),
+        ];
+
+        parse(tokens);
+    }
+
+    #[test]
+    fn attribute() {
         let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
-
-            T::Indent("  ".to_owned()),
+            T::Indent("\t".to_owned()),
             T::Identifier("person".to_owned()),
             T::Newline,
-
-            T::Indent("    ".to_owned()),
+            T::Indent("\t\t".to_owned()),
             T::Identifier("kevin".to_owned()),
             T::Newline,
-
-            T::Indent("      ".to_owned()),
+            T::Indent("\t\t\t".to_owned()),
             T::Identifier("name".to_owned()),
             T::Text("Kevin".to_owned()),
-            T::Newline,
         ];
 
         assert_eq!(parse(tokens), vec![
@@ -553,5 +566,186 @@ mod tests {
                 ]
             }
         ]);
+    }
+
+    #[test]
+    fn lotsa_attributes() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+            T::Text("Kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("age".to_owned()),
+            T::Number("39".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+            T::Text("Nobody".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::QuotedIdentifier("IsIdentifiable?".to_owned()),
+            T::Boolean(false),
+            T::Newline,
+            T::Identifier("private_schema".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("pet".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("cupid".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("loves_belly_scratches".to_owned()),
+            T::Boolean(true),
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("kevin".to_owned()),
+                                attributes: vec![
+                                    Attribute {
+                                        name: "name".to_owned(),
+                                        value: Value::Text("Kevin".to_owned()),
+                                    },
+                                    Attribute {
+                                        name: "age".to_owned(),
+                                        value: Value::Number("39".to_owned()),
+                                    },
+                                ],
+                            },
+                            Record {
+                                name: None,
+                                attributes: vec![
+                                    Attribute {
+                                        name: "name".to_owned(),
+                                        value: Value::Text("Nobody".to_owned()),
+                                    },
+                                    Attribute {
+                                        name: "IsIdentifiable?".to_owned(),
+                                        value: Value::Boolean(false),
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            Schema {
+                name: "private_schema".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "pet".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("cupid".to_owned()),
+                                attributes: vec![
+                                    Attribute {
+                                        name: "loves_belly_scratches".to_owned(),
+                                        value: Value::Boolean(true),
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Unexpected token")]
+    fn expecting_attribute_wrong_token() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Boolean(false),
+        ];
+
+        parse(tokens);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected value for attribute")]
+    fn attribute_without_value() {
+        let mut tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+        ];
+
+        parse(tokens);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected value for attribute")]
+    fn attribute_without_value_newline() {
+        let mut tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+            T::Newline,
+        ];
+
+        parse(tokens);
+    }
+
+    #[test]
+    #[should_panic(expected = "Unexpected token")]
+    fn attribute_with_extra_identifier() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+            T::Text("Kevin".to_owned()),
+            T::Identifier("name".to_owned()),
+        ];
+
+        parse(tokens);
     }
 }

@@ -24,7 +24,7 @@ public
 
     _:
       name 'Kevin'
-      age 38
+      age 39
 
 -- For schema and/or table names with whitespace, use double quotes
 "schema name with spaces"
