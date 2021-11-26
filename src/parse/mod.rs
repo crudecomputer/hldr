@@ -212,6 +212,306 @@ mod tests {
         ]);
     }
 
+    #[test]
+    fn tables_quoted_identifiers() {
+        let tokens = vec![
+            T::QuotedIdentifier("public schema".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::QuotedIdentifier("a table".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::QuotedIdentifier("another table".to_owned()),
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public schema".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "a table".to_owned(),
+                        records: Vec::new(),
+                    },
+                    Table {
+                        name: "another table".to_owned(),
+                        records: Vec::new(),
+                    },
+                ],
+            },
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Unexpected token")]
+    fn tables_without_newlines() {
+        let tokens = vec![
+            T::Identifier("schema1".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Indent("    ".to_owned()),
+            T::Identifier("table2".to_owned()),
+        ];
+
+        parse(tokens);
+
+        let tokens = vec![
+            T::Identifier("schema1".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Identifier("table2".to_owned()),
+        ];
+
+        parse(tokens);
+
+        let tokens = vec![
+            T::Identifier("schema1".to_owned()),
+            T::Indent("    ".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Identifier("table2".to_owned()),
+        ];
+
+        parse(tokens);
+    }
+
+    #[test]
+    fn named_record() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("kevin".to_owned()),
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("kevin".to_owned()),
+                                attributes: Vec::new(),
+                            }
+                        ]
+                    }
+                ],
+            },
+        ]);
+    }
+
+    #[test]
+    fn named_records() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("stacey".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("pet".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("eiyre".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("cupid".to_owned()),
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("stacey".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: Some("kevin".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                    Table {
+                        name: "pet".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("eiyre".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: Some("cupid".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                ],
+            },
+        ]);
+    }
+
+    #[test]
+    fn anonymous_record() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            }
+                        ]
+                    }
+                ],
+            },
+        ]);
+    }
+
+    #[test]
+    fn anonymous_records() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("pet".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                    Table {
+                        name: "pet".to_owned(),
+                        records: vec![
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                ],
+            },
+        ]);
+    }
+
+    #[test]
+    fn mixed_records() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("  ".to_owned()),
+            T::Identifier("pet".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Underscore,
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("eiyre".to_owned()),
+        ];
+
+        assert_eq!(parse(tokens), vec![
+            Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        name: "person".to_owned(),
+                        records: vec![
+                            Record {
+                                name: Some("kevin".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                    Table {
+                        name: "pet".to_owned(),
+                        records: vec![
+                            Record {
+                                name: None,
+                                attributes: Vec::new(),
+                            },
+                            Record {
+                                name: Some("eiyre".to_owned()),
+                                attributes: Vec::new(),
+                            },
+                        ]
+                    },
+                ],
+            },
+        ]);
+    }
+
     //#[test]
     fn single_record() {
         let tokens = vec![

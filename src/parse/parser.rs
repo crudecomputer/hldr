@@ -6,6 +6,7 @@ detect indentation level
 
 */
 use super::{
+    Record,
     Schema,
     Table,
     Token,
@@ -18,6 +19,7 @@ pub enum State {
     //ExpectingSchema,
     CreatedSchema,
     CreatedTable,
+    CreatedRecord,
     ExpectingNewline,
     ExpectingTable,
     ExpectingRecord,
@@ -85,7 +87,7 @@ impl Parser {
                     _ => panic!("Unexpected token {:?}", token)
                 }
 
-                CreatedSchema | CreatedTable => match token {
+                CreatedSchema | CreatedTable | CreatedRecord => match token {
                     Token::Newline => {
                         LineStart
                     }
@@ -105,24 +107,30 @@ impl Parser {
                     _ => panic!("Unexpected token {:?}", token)
                 }
 
-                /*
-                ExpectingNewline => match token {
-                    Token::Newline => LineStart,
-                    _ => panic!("Expected newline")
-                }
-
                 ExpectingRecord => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        LineStart
+                    }
                     Token::Identifier(_) | Token::Underscore => {
                         let name = match token {
                             Token::Identifier(ident) => Some(ident),
                             Token::Underscore => None,
                             _ => unreachable!()
                         };
-                        println!("Creating record: {:?}", name);
-                        LineStart
+                        let table = self
+                            .schemas.last_mut().expect("No schema to find table")
+                            .tables.last_mut().expect("No table to add record to");
+                        table.records.push(Record::new(name));
+                        CreatedRecord
                     }
                     _ => panic!("Unexpected token {:?}", token)
+                }
+
+                /*
+
+                ExpectingNewline => match token {
+                    Token::Newline => LineStart,
+                    _ => panic!("Expected newline")
                 }
 
                 ExpectingColumn => match token {
@@ -153,7 +161,7 @@ impl Parser {
                     _ => panic!("Unexpected token {:?}", token)
                 }
                 */
-                _ => panic!()
+                _ => unreachable!()
             }
         }
 
