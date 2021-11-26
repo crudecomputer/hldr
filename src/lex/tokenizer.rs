@@ -17,13 +17,13 @@ pub enum State {
 }
 
 #[derive(Debug)]
-pub(super) struct Machine {
+pub(super) struct Tokenizer {
     state: State,
     stack: Vec<char>,
     pub tokens: Vec<Token>,
 }
 
-impl Machine {
+impl Tokenizer {
     pub fn new() -> Self {
         Self {
             state: State::LineStart,
@@ -32,7 +32,7 @@ impl Machine {
         }
     }
 
-    pub fn lex(&mut self, input: &str) {
+    pub fn tokenize(mut self, input: &str) -> Self {
         for (line_num, line) in input.lines().enumerate() {
             self.state = State::LineStart;
 
@@ -290,6 +290,8 @@ impl Machine {
 
             self.tokens.push(Token::Newline);
         }
+
+        self
     }
 }
 

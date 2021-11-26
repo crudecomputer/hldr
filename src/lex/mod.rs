@@ -1,7 +1,6 @@
+mod tokenizer;
 
-mod machine;
-
-use machine::Machine;
+use tokenizer::Tokenizer;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -16,9 +15,7 @@ pub enum Token {
 }
 
 pub fn lex(text: &str) -> Vec<Token> {
-    let mut machine = Machine::new();
-    machine.lex(text);
-    machine.tokens
+    Tokenizer::new().tokenize(text).tokens
 }
 
 #[cfg(test)]
@@ -244,7 +241,7 @@ r#"public
   person
     kevin
       name 'Kevin'
-      age 38
+      age 39
       favorite_book 'Cat''s Cradle'
 
 "quoted @ schema"
@@ -316,7 +313,7 @@ r#"public
 
             indent("      "),
             T::Identifier("age".to_owned()),
-            T::Number("38".to_owned()),
+            T::Number("39".to_owned()),
             T::Newline,
 
             indent("      "),
