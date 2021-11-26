@@ -1,7 +1,6 @@
+mod tokenizer;
 
-mod machine;
-
-use machine::Machine;
+use tokenizer::Tokenizer;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -16,9 +15,7 @@ pub enum Token {
 }
 
 pub fn lex(text: &str) -> Vec<Token> {
-    let mut machine = Machine::new();
-    machine.lex(text);
-    machine.tokens
+    Tokenizer::new().tokenize(text).tokens
 }
 
 #[cfg(test)]
