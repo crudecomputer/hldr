@@ -673,7 +673,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Expected value for attribute")]
     fn attribute_without_value() {
-        let mut tokens = vec![
+        let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
             T::Indent("\t".to_owned()),
@@ -692,7 +692,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Expected value for attribute")]
     fn attribute_without_value_newline() {
-        let mut tokens = vec![
+        let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
             T::Indent("\t".to_owned()),
