@@ -1,2 +1,3 @@
-mod lex;
-mod parse;
+pub mod lex;
+pub mod parse;
+pub mod validate;

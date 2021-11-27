@@ -12,18 +12,18 @@ pub enum Value {
 
 #[derive(Debug, PartialEq)]
 pub struct Attribute {
-    name: String,
-    value: Value,
+    pub name: String,
+    pub value: Value,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Record {
-    name: Option<String>,
-    attributes: Vec<Attribute>,
+    pub name: Option<String>,
+    pub attributes: Vec<Attribute>,
 }
 
 impl Record {
-    fn new(name: Option<String>) -> Self {
+    pub fn new(name: Option<String>) -> Self {
         Self {
             name,
             attributes: Vec::new(),
@@ -38,7 +38,7 @@ pub struct Table {
 }
 
 impl Table {
-    fn new(name: String) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             name,
             records: Vec::new(),
@@ -53,7 +53,7 @@ pub struct Schema {
 }
 
 impl Schema {
-    fn new(name: String) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             name,
             tables: Vec::new(),
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Expected value for attribute")]
     fn attribute_without_value() {
-        let mut tokens = vec![
+        let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
             T::Indent("\t".to_owned()),
@@ -692,7 +692,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Expected value for attribute")]
     fn attribute_without_value_newline() {
-        let mut tokens = vec![
+        let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
             T::Indent("\t".to_owned()),

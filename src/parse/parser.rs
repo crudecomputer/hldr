@@ -1,10 +1,3 @@
-/*
-
-detect indentation level
-
-
-
-*/
 use super::{
     Attribute,
     Record,
@@ -153,8 +146,6 @@ impl Parser {
                     }
                     _ => panic!("Expected value for attribute")
                 }
-
-                _ => unreachable!()
             }
         }
 
