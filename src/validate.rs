@@ -1,6 +1,15 @@
 use super::parse::*;
 
-pub fn validate(schemas: Vec<Schema>) -> Vec<Schema> {
+#[derive(Debug, PartialEq)]
+pub struct ValidatedSchemas(Vec<Schema>);
+
+impl ValidatedSchemas {
+    pub fn schemas(&self) -> &Vec<Schema> {
+        &self.0
+    }
+}
+
+pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
     let mut validated: Vec<Schema> = Vec::new();
 
     for schema in schemas {
@@ -51,7 +60,7 @@ pub fn validate(schemas: Vec<Schema>) -> Vec<Schema> {
         }
     }
 
-    validated
+    ValidatedSchemas(validated)
 }
 
 #[cfg(test)]
@@ -60,7 +69,7 @@ mod validate_tests {
 
     #[test]
     fn empty_is_valid() {
-        assert_eq!(validate(Vec::new()), Vec::new());
+        assert_eq!(validate(Vec::new()), ValidatedSchemas(Vec::new()));
     }
 
     #[test]
@@ -74,7 +83,7 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(validate(input), output);
+        assert_eq!(validate(input), ValidatedSchemas(output));
     }
 
     #[test]
@@ -87,7 +96,7 @@ mod validate_tests {
             Schema::new("schema1".to_owned()),
         ];
 
-        assert_eq!(validate(input), output);
+        assert_eq!(validate(input), ValidatedSchemas(output));
 
         let input = vec![
             Schema::new("schema1".to_owned()),
@@ -99,7 +108,7 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(validate(input), output);
+        assert_eq!(validate(input), ValidatedSchemas(output));
     }
 
     #[test]
@@ -146,12 +155,12 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(validate(input), output);
+        assert_eq!(validate(input), ValidatedSchemas(output));
     }
 
     #[test]
     fn dedupe_tables_with_records() {
-        let actual = validate(vec![
+        let input = vec![
             Schema {
                 name: "schema1".to_owned(),
                 tables: vec![],
@@ -192,8 +201,8 @@ mod validate_tests {
                     },
                 ],
             },
-        ]);
-        let expected = vec![
+        ];
+        let output = vec![
             Schema {
                 name: "schema1".to_owned(),
                 tables: vec![
@@ -222,7 +231,7 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(actual, expected);
+        assert_eq!(validate(input), ValidatedSchemas(output));
     }
 
     #[test]
@@ -309,7 +318,7 @@ mod validate_tests {
             }
         ];
 
-        assert_eq!(validate(input), output);
+        assert_eq!(validate(input), ValidatedSchemas(output));
     }
 
     #[test]
