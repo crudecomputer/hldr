@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use postgres::{config::Config, Client, NoTls};
+use postgres::{config::Config, Client, Transaction, NoTls};
 
 use super::{
     parse::Value,
@@ -34,10 +34,7 @@ pub fn literal_value(v: &Value) -> String {
     }
 }
 
-pub fn load(validated: &ValidatedSchemas, commit: bool) {
-    let mut client = new_client();
-    let mut transaction = client.transaction().unwrap();
-
+pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {
     for schema in validated.schemas() {
         for table in &schema.tables {
             for record in &table.records {
@@ -72,14 +69,12 @@ pub fn load(validated: &ValidatedSchemas, commit: bool) {
             }
         }
     }
-
-    if commit {
-        transaction.commit().unwrap();
-    }
 }
 
 #[cfg(test)]
 mod load_tests {
+    use chrono::prelude::*;
+
     use super::*;
     use super::super::validate::validate;
     use super::super::parse::{Schema, Table, Record, Attribute, Value};
@@ -109,13 +104,61 @@ mod load_tests {
                                         value: Value::Text("2021-11-28T12:00:00-05:00".to_owned()),
                                     },
                                 ]
-                            }
+                            },
+                            Record {
+                                name: Some("record".to_owned()),
+                                attributes: vec![
+                                    Attribute {
+                                        name: "column1".to_owned(),
+                                        value: Value::Boolean(false),
+                                    },
+                                    Attribute {
+                                        name: "column2".to_owned(),
+                                        value: Value::Number("12345".to_owned()),
+                                    },
+                                    Attribute {
+                                        name: "column3".to_owned(),
+                                        value: Value::Text("2021-11-30T00:00:00-5:00".to_owned()),
+                                    },
+                                ]
+                            },
                         ]
                     }
                 ]
             }
         ]);
 
-        load(&v, true);
+        let mut client = new_client();
+        let mut transaction = client.transaction().unwrap();
+
+        transaction.execute("
+            CREATE SCHEMA schema1
+        ", &[]).unwrap();
+        transaction.execute("
+            CREATE TABLE  schema1.table1  (
+                id serial primary key,
+                column1 bool,
+                column2 int,
+                column3 timestamptz
+            )
+        ", &[]).unwrap();
+
+        load(&mut transaction, &v);
+
+        let rows = transaction.query("
+            SELECT column1, column2, column3 FROM schema1.table1
+            ORDER BY id DESC
+        ", &[]).unwrap();
+
+        assert_eq!(rows.len(), 2);
+
+        assert!(!rows[0].get::<&str, bool>("column1"));
+        assert!( rows[1].get::<&str, bool>("column1"));
+
+        assert_eq!(rows[0].get::<&str, i32>("column2"), 12345);
+        assert_eq!(rows[1].get::<&str, i32>("column2"), 13); // Decimals were truncated
+
+        assert_eq!(rows[0].get::<&str, DateTime<Utc>>("column3"), Utc.ymd(2021, 11, 30).and_hms(5, 0, 0));
+        assert_eq!(rows[1].get::<&str, DateTime<Utc>>("column3"), Utc.ymd(2021, 11, 28).and_hms(17, 0, 0));
     }
 }
