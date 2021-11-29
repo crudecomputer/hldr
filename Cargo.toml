@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+postgres = "0.19.2"
+
+[dev-dependencies]
+chrono = "0.4.19"
+postgres = {version = "0.19.2", features = ["with-chrono-0_4"] }
