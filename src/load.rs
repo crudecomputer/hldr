@@ -1,5 +1,4 @@
 use std::{
-    env,
     str::FromStr,
     time::Duration,
 };
@@ -11,9 +10,8 @@ use super::{
     validate::ValidatedSchemas,
 };
 
-fn new_client() -> Client {
-    let url: String = env::var("HLDR_DATABASE_URL").expect("HLDR_DATABASE_URL not set");
-    let mut config = Config::from_str(&url).unwrap();
+pub fn new_client(connstr: &str) -> Client {
+    let mut config = Config::from_str(connstr).unwrap();
 
     config.application_name("hldr");
 
@@ -24,14 +22,6 @@ fn new_client() -> Client {
     let client = config.connect(NoTls).unwrap();
 
     client
-}
-
-pub fn literal_value(v: &Value) -> String {
-    match v {
-        Value::Boolean(b) => b.to_string(),
-        Value::Number(n) => n.clone(),
-        Value::Text(t) => format!("'{}'", t),
-    }
 }
 
 pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {
@@ -68,6 +58,14 @@ pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {
                 transaction.execute(&statement, &[]).unwrap();
             }
         }
+    }
+}
+
+fn literal_value(v: &Value) -> String {
+    match v {
+        Value::Boolean(b) => b.to_string(),
+        Value::Number(n) => n.clone(),
+        Value::Text(t) => format!("'{}'", t),
     }
 }
 

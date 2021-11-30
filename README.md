@@ -6,91 +6,211 @@ Placeholder strives to make generating test data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
 with dedicated factory libraries, like Python and FactoryBot.
 
-With some powerful, easy to read syntax and a simple `hldr` command,
+With some powerful, easy to read syntax and a single `hldr` command,
 you can have a well populated database in no time without setting up
 languages, dependencies, or verbose factory classes.
 
-## Planned Features
+## Usage
 
-### Simple records
+Placeholder currently must be compiled from source.
 
-Singular records can easily be created, and they can be named or anonymous.
+Once compiled and installed to your path,
+to run the command you must specify the file to load and the
+database connection string.
+
+```
+# If installed in path as `hldr`
+$ hldr -f path/to/data/file -d postgres://user:password@host:port/db
+```
+
+By default, Placeholder will roll back the transaction,
+which is useful to test that all records can be created.
+If you want to commit the records, pass the `--commit` flag.
+
+```
+$ hldr -f path/to/data/file -d postgres://user:password@host:port/db --commit
+```
+
+## Features
+
+Placeholder uses a clean, whitespace-significant syntax,
+with an indentation style of your choosing. Tabs or 3 spaces?
+Do whatever you want, as long as it's consistent.
+
+Records themselves can either be given a name, or they can be anonymous.
+Named records are not useful yet but they [will be soon](#reference-values).
+
+There are literal values for booleans, numbers, and text strings.
+
+- Numbers can be integers or floats; it will be up to the database to
+coerce them to the right type based on the column.
+
+- Text strings will also be coerced, which means they can be
+used to represent `varchar`, `text`, `timestamptz`, arrays like `int[]`, or any
+other type (even user-defined types) that can be constructed in SQL from string literals.
+
+The general file format looks like...
+
+```
+schema
+  table
+    record
+      column value
+```
+... where any number of schemas, tables, records, and attributes can be defined.
+
+For example, a simple file that looks like...
 
 ```
 public
-  person -- Table name
-    stacey:
-      name 'Stacey'
+  person
+    fry
+      name 'Philip J. Fry'
+      hair_color 'red'
 
-    _:
-      name 'Kevin'
-      age 39
+    leela
+      name 'Turanga Leela'
 
--- For schema and/or table names with whitespace, use double quotes
-"schema name with spaces"
-  -- Bare identifiers are not converted to lowercase as they are in SQL
-  SomeTable
-    _:
-      id 1
+  pet
+    _
+      name 'Nibbler'
 ```
 
-### References
+... will create three record (two named, one anonymous) like:
 
-Named records are useful because they can be referenced elsewhere,
-particularly in foreign keys. Creating a record returns all columns,
-not just those declared in the file, so it lets you reference columns
-that are populated with database-side defaults.
+```sql
+INSERT INTO "public"."person" ("name", "hair_color")
+  VALUES ('Philip J. Fry', 'red');
 
-You can reference a column from a named record using the
-fully-qualified format `schema.table#name.column`.
+INSERT INTO "public"."person" ("name")
+  VALUES ('Turanga Leela');
+
+INSERT INTO "public"."pet" ("name")
+  VALUES ('Nibbler');
+```
+
+Comments, like SQL, begin with `--` and can either be in their own line or inline.
+
+```
+public
+  -- This table has people in it
+  person
+    fry -- This is a named record
+      name 'Philip J. Fry'
+
+    -- This is an anonymous record...
+    _
+      -- ... even though we know its name
+      name 'Morbo'
+```
+
+Bare identifiers (ie. `public`, `person`, and `name` in the example above)
+are not lowercased or truncated automatically, like in SQL.
+Statements use quoted identifiers automatically,
+but (for the sake of the parser) you must explicitly quote identifiers
+that have whitespace, punctuation, etc.
+
+```
+"schema with whitespace"
+  "table.with -- dashes"
+    my_record
+      "column with spaces" 42
+```
+
+
+
+## Planned features
+
+### Easier command options
+
+This is a lot to type:
+
+```
+$ hldr -f path/to/data/file -d postgres://user:password@host:port/db --commit
+```
+
+A nice-to-have would be to look for default files in the current directory
+to avoid all that typing, eg. a `data.hldr` file for the records and
+a `hldr.env` file with the database connection string.
+
+### Reference values
+
+Named records should be referenceable elsewhere.
+Creating a record should return all columns, not just those declared
+in the file, so they should let you reference columns that are populated
+with database-side defaults.
+
+Proposed is a format that lets one reference a column from a named
+record using the fully-qualified format `schema.table#name.column`
+with several shorthand varieties:
 
 - The `schema` can be omitted if the record being created is in the same
-scheme as the table being referenced
-- The `table` can be omitted
+scheme as the referenced table and record
+- The `table` can be omitted if the record being created is in the same table as the referenced record
 
+For example:
 
 ```
-public:
-  person:
-    stacey:
-      name 'Stacey'
+schema1
+  person
+    fry
+      name 'Philip J. Fry'
       likes_pizza true
 
-    kevin:
-      name 'Kevin'
-      likes_pizza #stacey.likes_pizza
+    leela
+      name 'Turanga Leela'
+      likes_pizza #fry.likes_pizza
 
-  pet:
-    cupid:
-      name 'Cupid'
-      person_id person#stacey.id
+  pet
+    _
+      name 'Nibbler'
+      person_id person#leela.id
+
+schema2
+  robot
+    _
+      name 'Bender Bending Rodriguez'
+      lives_with schema1.person#fry.id
 ```
 
-There are some shorthand forms that remove some of the redundancy
-of declarations like `likes_pizza #stacey.likes_pizza` and
-`person_id person#stacey.id` when the column names are identical.
+Some additional shorthand forms could remove some of the redundancy
+of declarations like `likes_pizza #fry.likes_pizza` and
+`person_id person#leela.id` when the column names are identical.
 
 - The `[column] #ref` pattern looks for a named reference
 in the same table and uses its value from the same column
 
 - The `[table.column] #ref` pattern is useful for foreign key
 columns whose names perfectly match the referenced table
-and column. *(Note: This currently doesn't support cross-schema references.)*
+and column.
+*(Note: This would not support cross-schema references.)*
 
 For instance, the above can also be written as:
 
 ```
-public:
-  person:
-    stacey:
+schema1
+  person
+    fry
+      name 'Philip J. Fry'
       likes_pizza true
 
-    kevin:
-      [likes_pizza] #stacey
+    leela
+      name 'Turanga Leela'
+      -- Expands to `likes_pizza #fry.likes_pizza`
+      [likes_pizza] #fry
 
-  pet:
-    cupid:
-      [person.id] #stacey
+  pet
+    _
+      name 'Nibbler'
+      -- Expands to `person_id person#leela.id`
+      [person.id] #leela
+
+schema2
+  robot
+    _
+      name 'Bender Bending Rodriguez'
+      -- There's no shortening this :*(
+      lives_with schema1.person#fry.id
 ```
 
 ### Composition
@@ -99,19 +219,19 @@ Writing every column value manually can be tedious, especially if
 numerous records have similar sets of values or we want to reference
 multiple values from another record.
 
-We can compose records in several ways.
+We should be able to compose records in several ways.
 
 #### Copy values from one record into another
 
-All values can be copied from one record into another,
+All values are copyable from one record into another,
 and it's possible to override any that need to be changed.
-(**Note:** This will only copy fields explicitly declared in the
+(**Note:** This would only copy fields explicitly declared in the
 original reference - defaults or generated columns will not be copied.)
 
 ```
-public:
-  pet:
-    cupid:
+public
+  pet
+    cupid
       friendly true
       name 'Cupid'
       sex 'male'
@@ -126,9 +246,9 @@ which is useful when columns in the second record are wanted
 to be null.
 
 ```
-public:
-  pet:
-    cupid:
+public
+  pet
+    cupid
       friendly true
       name 'Cupid'
       sex 'male'
@@ -142,26 +262,27 @@ public:
 
 Sometimes we want common sets of attributes to apply to multiple records,
 but we don't want them to come from a record itself.
-This is where **templates** are useful, and they can be declared at any
+This is where **templates** would be useful,
+and they should be declareable at any
 scope and define any set of columns.
 
-A record can use values from multiple templates, and any templates used
+A record could use values from multiple templates, and any templates used
 must be accessible in scope to that table *and* have the right columns.
 
 ```
 -- This template can be used in any schema or table,
 -- as long as the table has the 'color' column
-$brown:
+$brown
   color 'brown'
 
-public:
+public
   -- This template can be used in any 'public' schema table
-  $friendly:
+  $friendly
     friendly true
 
-  pet:
+  pet
     -- This template can only be used by 'pet' records
-    $cat:
+    $cat
       species 'cat'
 
     cupid: $friendly $brown $cat
@@ -170,18 +291,19 @@ public:
     eiyre: $friendly $cat
 ```
 
-Additionally, templates and record copying can be intermixed in any order.
+Additionally, templates and record copying should be able to be
+intermixed in any order.
 
 ```
-public:
-  pet:
-    $black:
+public
+  pet
+    $black
       color 'black'
 
-    $friendly:
+    $friendly
       friendly true
 
-    $cat:
+    $cat
       species 'cat'
 
     cupid: $friendly $cat
@@ -193,46 +315,59 @@ public:
 
 ### Default values
 
-Table-level defaults are easy to define and override.
+Table-level defaults should be easy to define and override.
 
 ```
-public:
-  pet:
+public
+  pet
     @species 'cat'
 
-    cupid:
+    cupid
       name 'Cupid'
 
-    eiyre:
+    eiyre
       name 'Eiyre'
 
-    huxley:
+    huxley
       name 'Huxley'
       species 'dog'
 ```
 
 ### Series
 
-It can be useful to generate series of records, either a certain number
-or based on a list of values.
-These series can also be anonymous or named, and they can also
-be composed from other records or templates like singular records can.
+It can be useful to generate series of records.
+These series should also be anonymous or named, and they should also
+be able to be composed from other records or templates like singular records can.
 
 ```
-public:
-  pet:
+public
+  pet
     $cat
       species 'cat'
 
-    *5n:
+    -- An anonymous series
+    *5n
+      -- Some form of interpolation should be possible
       name 'Pet ${n}'
 
-    *10n cats: $cat
-      name 'Cat ${n}'
+    -- A named series with composition
+    *10x cats: $cat
+      name 'Cat ${x}'
 
-    *each-name ['Cupid' 'Eiyre'] other_cats:
-      name name
+    yet_another_cat
+      [name] #cats{0}
+```
 
-    another_cat:
-      [name] #cats[0]
+Additionally, would series from lists of values be desirable?
+
+```
+public
+  pet
+    $cat
+      species 'cat'
+
+    *{'Cupid' 'Eiyre'}n cats: $cat
+      name n
+
+    eiyre2: #cats{1}[name]
 ```
