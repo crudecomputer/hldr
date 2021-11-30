@@ -10,6 +10,9 @@ With some powerful, easy to read syntax and a single `hldr` command,
 you can have a well populated database in no time without setting up
 languages, dependencies, or verbose factory classes.
 
+> See [jrny](https://github.com/kevlarr/jrny)
+> for a complementary, straightforward SQL-based database migration tool.
+
 ## Usage
 
 Placeholder currently must be compiled from source but precompiled
