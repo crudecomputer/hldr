@@ -93,7 +93,7 @@ INSERT INTO "public"."pet" ("name")
   VALUES ('Nibbler');
 ```
 
-Comments, like SQL, begin with `--` and can either be in their own line or inline.
+Comments, like SQL, begin with `--` and can either be newline or trailing comments.
 
 ```
 public
