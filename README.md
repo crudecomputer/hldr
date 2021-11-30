@@ -12,7 +12,8 @@ languages, dependencies, or verbose factory classes.
 
 ## Usage
 
-Placeholder currently must be compiled from source.
+Placeholder currently must be compiled from source but precompiled
+binaries for common platforms should be [available soon](https://github.com/kevlarr/hldr/issues/16).
 
 Once compiled and installed to your path,
 to run the command you must specify the file to load and the
