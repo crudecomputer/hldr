@@ -42,7 +42,7 @@ with an indentation style of your choosing. Tabs or 3 spaces?
 Do whatever you want, as long as it's consistent.
 
 Records themselves can either be given a name, or they can be anonymous.
-Named records are not useful yet but they [will be soon](#reference-values).
+Named records are not useful yet but they [will be soon](https://github.com/kevlarr/hldr/issues/12).
 
 There are literal values for booleans, numbers, and text strings.
 
