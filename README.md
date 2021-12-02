@@ -2,6 +2,9 @@
 
 *Easy, declarative data seeding for PostgreSQL*
 
+> See [Journey](https://github.com/kevlarr/jrny)
+> for a complementary, straightforward SQL-based database migration tool.
+
 Placeholder strives to make generating test data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
 with dedicated factory libraries, like Python and FactoryBot.
@@ -9,9 +12,6 @@ with dedicated factory libraries, like Python and FactoryBot.
 With some powerful, easy to read syntax and a single `hldr` command,
 you can have a well populated database in no time without setting up
 languages, dependencies, or verbose factory classes.
-
-> See [jrny](https://github.com/kevlarr/jrny)
-> for a complementary, straightforward SQL-based database migration tool.
 
 ## Usage
 
