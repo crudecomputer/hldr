@@ -9,23 +9,20 @@ This project also attempts to adhere to [Semantic Versioning](https://semver.org
 ---
 
 ## [Planned]
-- WIP things
 
 ---
 
-## [x.y.z] - YYYY-MM-DD
+## [0.2.0] - 2021-12-02
 
 ### Added
-- List
-
-### Changed
-- List
-
-### Removed
-- List
+- Allow supplying `database_conn` and `data_file` variables in `.placehldr` file
+- Default to `place.hldr` for data file if none specified by CLI option or `.placehldr` file
 
 ---
 
-## [x.y.z] - YYYY-MM-DD
+## [0.1.0] - 2021-11-29
 
-...
+### Added
+- Simple records can be created with literal values
+- Specify file to load via `-f` or `--data-file`
+- Specify database connecting string via `-d` or `--database-conn`
