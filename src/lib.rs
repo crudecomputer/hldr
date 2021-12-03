@@ -5,7 +5,7 @@ pub mod load;
 pub mod parse;
 pub mod validate;
 
-pub fn seed(connstr: &str, filepath: &PathBuf, commit: bool) {
+pub fn place(connstr: &str, filepath: &PathBuf, commit: bool) {
     let text = fs::read_to_string(&filepath).unwrap();
     let tokens = lex::lex(&text);
     let schemas = parse::parse(tokens);
