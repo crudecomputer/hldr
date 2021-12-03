@@ -22,17 +22,46 @@ Once compiled and installed to your path,
 to run the command you must specify the file to load and the
 database connection string.
 
+These can be specified by the `-f [or --data-file]` and
+`-d [or --database-conn]` options.
+
 ```
 # If installed in path as `hldr`
 $ hldr -f path/to/data/file -d postgres://user:password@host:port/db
 ```
 
+### Default files
+
+There are several alternatives to using the command-line flags.
+
+If the data file is not specified, `hldr` will by default look for a data file named `place.hldr`
+in the current directory.
+
+Additionally, a `.placehldr` file (also in the current directory) can be used to specify either
+or both of the variables. For instance:
+
+```
+# For values with spaces, eg. the key-value connection string format, use double quotes.
+# database_conn="host=localhost dbname=my_database user=postgres"
+database_conn=postgres://postgres@localhost/my_database
+
+# Specifying this means hldr will no longer look for the `place.hldr` default data file.
+# The .hldr extension is recommended but not necessary.
+data_file="my file.hldr"
+```
+
+Any variable in the `.placehldr` file will be overridden in favor of any command-line options
+that are also supplied.
+
+### Committing
+
 By default, Placeholder will roll back the transaction,
-which is useful to test that all records can be created.
+which is useful to test that all records can be created
+before finally applying them.
 If you want to commit the records, pass the `--commit` flag.
 
 ```
-$ hldr -f path/to/data/file -d postgres://user:password@host:port/db --commit
+$ hldr --commit
 ```
 
 ## Features
@@ -120,8 +149,6 @@ that have whitespace, punctuation, etc.
     my_record
       "column with spaces" 42
 ```
-
-
 
 ## Planned features
 

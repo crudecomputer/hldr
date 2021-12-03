@@ -6,7 +6,8 @@ use clap::{Parser, crate_version};
 #[derive(Parser, Debug)]
 #[clap(version = crate_version!())]
 struct Command {
-    /// Connection string - for allowed formats see: https://docs.rs/postgres/0.19.2/postgres/config/struct.Config.html)
+    /// Database connection string - for allowed formats see: https://docs.rs/postgres/0.19.2/postgres/config/struct.Config.html
+
     #[clap(short = 'd', long = "database-conn", name = "CONN")]
     database_conn: Option<String>,
 
