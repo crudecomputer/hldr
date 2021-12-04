@@ -46,7 +46,7 @@ fn main() {
             hldr::place(
                 &dc.unwrap_or_else(|| vars.database_conn
                     .expect("database_conn not found in file")),
-                &df.or_else(|| vars.data_file)
+                &df.or(vars.data_file)
                     .unwrap_or_else(|| PathBuf::from("place.hldr")),
                 cmd.commit,
             )

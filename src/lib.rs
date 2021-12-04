@@ -1,11 +1,11 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::Path};
 
 pub mod lex;
 pub mod load;
 pub mod parse;
 pub mod validate;
 
-pub fn place(connstr: &str, filepath: &PathBuf, commit: bool) {
+pub fn place(connstr: &str, filepath: &Path, commit: bool) {
     let text = fs::read_to_string(&filepath).unwrap();
     let tokens = lex::lex(&text).unwrap();
     let schemas = parse::parse(tokens);

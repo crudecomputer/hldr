@@ -13,9 +13,7 @@ pub fn new_client(connstr: &str) -> Client {
         config.connect_timeout(Duration::new(30, 0));
     }
 
-    let client = config.connect(NoTls).unwrap();
-
-    client
+    config.connect(NoTls).unwrap()
 }
 
 pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {

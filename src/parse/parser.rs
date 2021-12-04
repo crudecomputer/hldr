@@ -37,15 +37,15 @@ impl Parser {
                 LineStart => match token {
                     Token::Newline => LineStart,
                     Token::Indent(indent) => {
-                        if indent.len() == 0 {
+                        if indent.is_empty() {
                             panic!("Empty indent received");
                         }
 
-                        if indent.trim().len() > 0 {
+                        if !indent.trim().is_empty() {
                             panic!("Non-whitespace indent received");
                         }
 
-                        if let None = &self.indent_unit {
+                        if self.indent_unit.is_none() {
                             self.indent_unit = Some(indent.clone());
                         }
 
@@ -148,9 +148,8 @@ impl Parser {
             }
         }
 
-        match self.state {
-            ExpectingValue(_) => panic!("Expected value for attribute"),
-            _ => {}
+        if let ExpectingValue(_) = &self.state {
+            panic!("Expected value for attribute");
         }
 
         self
@@ -166,7 +165,7 @@ fn indent_level(unit: &str, indent: &str) -> Option<usize> {
     let parts: Vec<&str> = indent.split(unit).collect();
 
     for p in &parts {
-        if p.len() > 0 {
+        if !p.is_empty() {
             return None;
         }
     }

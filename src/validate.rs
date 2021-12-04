@@ -37,11 +37,7 @@ pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
             for record in table.records {
                 if record.name.is_some() {
                     assert!(
-                        validated_table
-                            .records
-                            .iter()
-                            .find(|r| r.name == record.name)
-                            .is_none(),
+                        !validated_table.records.iter().any(|r| r.name == record.name),
                         "Duplicate record '{}' in '{}.{}'",
                         record.name.unwrap(),
                         validated_schema.name,
@@ -54,14 +50,10 @@ pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
 
                 for attribute in record.attributes {
                     assert!(
-                        validated_record
-                            .attributes
-                            .iter()
-                            .find(|a| a.name == attribute.name)
-                            .is_none(),
+                        !validated_record.attributes.iter().any(|a| a.name == attribute.name),
                         "Duplicate attribute '{}' for record '{}' in '{}.{}'",
                         attribute.name,
-                        validated_record.name.clone().unwrap_or("_".to_owned()),
+                        validated_record.name.clone().unwrap_or_else(|| "_".to_owned()),
                         validated_schema.name,
                         validated_table.name,
                     );
