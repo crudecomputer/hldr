@@ -7,7 +7,7 @@ pub mod validate;
 
 pub fn place(connstr: &str, filepath: &PathBuf, commit: bool) {
     let text = fs::read_to_string(&filepath).unwrap();
-    let tokens = lex::lex(&text);
+    let tokens = lex::lex(&text).unwrap();
     let schemas = parse::parse(tokens);
     let validated = validate::validate(schemas);
 

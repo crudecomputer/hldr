@@ -83,7 +83,7 @@ mod load_tests {
     fn loads() {
         let v = validate(vec![
             Schema {
-                name: "schema1".to_owned(),
+                name: "hldr_test_schema".to_owned(),
                 tables: vec![
                     Table {
                         name: "table1".to_owned(),
@@ -132,10 +132,10 @@ mod load_tests {
         let mut transaction = client.transaction().unwrap();
 
         transaction.execute("
-            CREATE SCHEMA schema1
+            CREATE SCHEMA hldr_test_schema
         ", &[]).unwrap();
         transaction.execute("
-            CREATE TABLE  schema1.table1  (
+            CREATE TABLE  hldr_test_schema.table1  (
                 id serial primary key,
                 column1 bool,
                 column2 int,
@@ -146,7 +146,7 @@ mod load_tests {
         load(&mut transaction, &v);
 
         let rows = transaction.query("
-            SELECT column1, column2, column3 FROM schema1.table1
+            SELECT column1, column2, column3 FROM hldr_test_schema.table1
             ORDER BY id DESC
         ", &[]).unwrap();
 

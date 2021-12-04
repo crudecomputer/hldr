@@ -4,13 +4,15 @@ mod error;
 pub use error::LexError;
 pub use tokenizer::Token;
 
-pub fn lex(text: &str) -> Vec<Token> {
-    tokenizer::Tokenizer::new().tokenize(text).unwrap().tokens
+pub fn lex(text: &str) -> Result<Vec<Token>, LexError> {
+    Ok(tokenizer::Tokenizer::new().tokenize(text)?.tokens)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
+        error::{LexErrorKind as K, Position as P},
+        LexError as E,
         Token as T,
         lex,
     };
@@ -21,14 +23,14 @@ mod tests {
 
     #[test]
     fn empty() {
-        assert_eq!(lex(""), vec![]);
+        assert_eq!(lex(""), Ok(vec![]));
     }
 
     #[test]
     fn whitespace() {
         let file = "  \n\n \t \n\t  \n\n   \n\t";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             indent("  "),
             T::Newline,
             T::Newline,
@@ -41,36 +43,42 @@ mod tests {
             T::Newline,
             indent("\t"),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
     fn comments_ignored() {
         let file = "-- a comment\n  -- another comment\n";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Newline,
             indent("  "),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected character ' ' (line 2, column 4)")]
     fn comment_incomplete() {
         let file =
 "-- a comment
   - bad comment";
-        lex(file);
+
+        assert_eq!(lex(file), Err(E {
+            position: P { line: 2, column: 4 },
+            kind: K::UnexpectedCharacter(' '),
+        }));
     }
 
     #[test]
-    #[should_panic(expected = "Expected comment (line 2, column 3)")]
     fn comment_unfinished() {
         let file =
 "-- a comment
   -";
-        lex(file);
+
+        assert_eq!(lex(file), Err(E {
+            position: P { line: 2, column: 3 },
+            kind: K::ExpectedComment,
+        }));
     }
 
     #[test]
@@ -80,7 +88,7 @@ mod tests {
     .1234
 1.1235";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Number("123".to_owned()),
             T::Number("0.12341".to_owned()),
             T::Newline,
@@ -89,21 +97,32 @@ mod tests {
             T::Newline,
             T::Number("1.1235".to_owned()),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected character '.' (line 1, column 2)")]
-    fn double_dots() { lex(".."); }
+    fn double_dots() {
+        assert_eq!(lex(".."), Err(E {
+            position: P { line: 1, column: 2 },
+            kind: K::UnexpectedCharacter('.'),
+        }));
+    }
 
     #[test]
-    #[should_panic(expected = "Unexpected character '.' (line 1, column 5)")]
-    fn double_decimals1() { lex(".123."); }
-
+    fn double_decimals1() {
+        assert_eq!(lex(".123."), Err(E {
+            position: P { line: 1, column: 5 },
+            kind: K::UnexpectedCharacter('.'),
+        }));
+    }
 
     #[test]
-    #[should_panic(expected = "Unexpected character '.' (line 1, column 6)")]
-    fn double_decimals2() { lex("1.123."); }
+    fn double_decimals2() {
+        assert_eq!(lex("1.123."), Err(E {
+            position: P { line: 1, column: 6 },
+            kind: K::UnexpectedCharacter('.'),
+        }));
+    }
 
     #[test]
     fn simple_identifiers() {
@@ -111,27 +130,29 @@ mod tests {
 "identifier1 ident_ifier2 --a comment
     _ident3";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Identifier("identifier1".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
             T::Newline,
             indent("    "),
             T::Identifier("_ident3".to_owned()),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected character 'a' (line 1, column 2)")]
     fn identifier_cant_start_with_number() {
-        lex("1asdf");
+        assert_eq!(lex("1asdf"), Err(E {
+            position: P { line: 1, column: 2 },
+            kind: K::UnexpectedCharacter('a'),
+        }));
     }
 
     #[test]
     fn bools() {
         let file = "t T true\n\tTrue TRUE f \n  F false False FALSE";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Boolean(true),
             T::Identifier("T".to_owned()),
             T::Boolean(true),
@@ -147,7 +168,7 @@ mod tests {
             T::Identifier("False".to_owned()),
             T::Identifier("FALSE".to_owned()),
             T::Newline,
-        ])
+        ]));
     }
 
     #[test]
@@ -157,20 +178,22 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
     "-- another""@""""identifier"
 "#;
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::QuotedIdentifier("some identifier".to_owned()),
             T::Identifier("ident_ifier2".to_owned()),
             T::Newline,
             indent("    "),
             T::QuotedIdentifier(r#"-- another"@""identifier"#.to_owned()),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
-    #[should_panic(expected = "Quoted identifier not closed (line 1, column 5)")]
     fn unclosed_quoted_identifier() {
-        lex("\"asdf");
+        assert_eq!(lex("\"asdf"), Err(E {
+            position: P { line: 1, column: 5 },
+            kind: K::UnclosedQuotedIdentifier,
+        }));
     }
 
     #[test]
@@ -179,38 +202,40 @@ r#""some identifier" ident_ifier2 -- a "quoted comment"
 "'some string'
 'another''s string' too 'and again'";
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Text("some string".to_owned()),
             T::Newline,
             T::Text("another's string".to_owned()),
             T::Identifier("too".to_owned()),
             T::Text("and again".to_owned()),
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
-    #[should_panic(expected = "String not closed (line 1, column 5)")]
     fn unclosed_string() {
-        lex("'asdf");
+        assert_eq!(lex("'asdf"), Err(E {
+            position: P { line: 1, column: 5 },
+            kind: K::UnclosedString,
+        }));
     }
 
     #[test]
     fn underscore_after_indent() {
-        assert_eq!(lex("\t_"), vec![
+        assert_eq!(lex("\t_"), Ok(vec![
             indent("\t"),
             T::Underscore,
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
     fn underscore_with_comment() {
-        assert_eq!(lex("\t_ -- some comment"), vec![
+        assert_eq!(lex("\t_ -- some comment"), Ok(vec![
             indent("\t"),
             T::Underscore,
             T::Newline,
-        ]);
+        ]));
     }
 
     #[test]
@@ -240,7 +265,7 @@ r#"public
       text 'Hello, world!'
 "#;
 
-        assert_eq!(lex(file), vec![
+        assert_eq!(lex(file), Ok(vec![
             T::Identifier("public".to_owned()),
             T::Newline,
 
@@ -328,6 +353,6 @@ r#"public
             T::Identifier("text".to_owned()),
             T::Text("Hello, world!".to_owned()),
             T::Newline,
-        ]);
+        ]));
     }
 }

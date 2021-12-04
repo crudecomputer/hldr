@@ -270,7 +270,6 @@ impl Tokenizer {
                     return Err(LexError::expected_comment(position));
                 }
                 State::QuotedIdentifierOpen => {
-                    //"Quoted identifier not closed (line {}, column {})"
                     return Err(LexError::unclosed_quoted_identifier(position));
                 }
                 State::QuotedIdentifierClosed => {
@@ -278,8 +277,7 @@ impl Tokenizer {
                     self.tokens.push(Token::QuotedIdentifier(text));
                 }
                 State::TextOpen => {
-                    // "String not closed (line {}, column {})"
-                    return Err(LexError::unclosed_quoted_identifier(position));
+                    return Err(LexError::unclosed_string(position));
                 }
                 State::TextClosed => {
                     let text: String = self.stack.drain(..).collect();
