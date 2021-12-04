@@ -71,6 +71,8 @@ fn literal_value(v: &Value) -> String {
 
 #[cfg(test)]
 mod load_tests {
+    use std::env;
+
     use chrono::prelude::*;
 
     use super::*;
@@ -126,7 +128,7 @@ mod load_tests {
             }
         ]);
 
-        let mut client = new_client();
+        let mut client = new_client(&env::var("HLDR_TEST_DATABASE_URL").unwrap());
         let mut transaction = client.transaction().unwrap();
 
         transaction.execute("

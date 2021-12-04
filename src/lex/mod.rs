@@ -1,21 +1,11 @@
 mod tokenizer;
+mod error;
 
-use tokenizer::Tokenizer;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Token {
-    Boolean(bool),
-    Identifier(String),
-    Indent(String),
-    Newline,
-    Number(String),
-    QuotedIdentifier(String),
-    Text(String),
-    Underscore,
-}
+pub use error::LexError;
+pub use tokenizer::Token;
 
 pub fn lex(text: &str) -> Vec<Token> {
-    Tokenizer::new().tokenize(text).tokens
+    tokenizer::Tokenizer::new().tokenize(text).unwrap().tokens
 }
 
 #[cfg(test)]

@@ -1,4 +1,17 @@
-use super::Token;
+use super::error::{LexError, Position};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Token {
+    Boolean(bool),
+    Identifier(String),
+    Indent(String),
+    Newline,
+    Number(String),
+    QuotedIdentifier(String),
+    Text(String),
+    Underscore,
+}
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
@@ -32,21 +45,18 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize(mut self, input: &str) -> Self {
-        for (line_num, line) in input.lines().enumerate() {
+    pub fn tokenize(mut self, input: &str) -> Result<Self, LexError> {
+        let mut position = Position { line: 0, column: 0 };
+
+        for line in input.lines() {
             self.state = State::LineStart;
+            position.line += 1;
+            position.column = 0;
 
-            let mut last_char_num = 0;
-
-            for (char_num, c) in line.chars().enumerate() {
-                last_char_num = char_num;
+            for c in line.chars() {
+                position.column += 1;
                 
-                let unexpected = || panic!(
-                    "Unexpected character '{}' (line {}, column {})",
-                    c,
-                    line_num + 1,
-                    char_num + 1,
-                );
+                let unexpected = || Err(LexError::unexpected_character(position, c));
 
                 self.state = match self.state {
                     State::Comment => State::Comment,
@@ -61,14 +71,14 @@ impl Tokenizer {
                             self.tokens.push(Token::Number(num));
                             State::Whitespace
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
 
                     State::ExpectingComment => match c {
                         '-' => {
                             State::Comment
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
 
                     State::Identifier => match c {
@@ -81,7 +91,7 @@ impl Tokenizer {
                             self.tokens.push(identifier_to_token(ident));
                             State::Whitespace
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
 
                     State::Indent => match c {
@@ -115,7 +125,7 @@ impl Tokenizer {
                                     self.stack.push(c);
                                     State::Identifier
                                 }
-                                _ => unexpected(),
+                                _ => return unexpected(),
                             }
                         }
                     }
@@ -134,7 +144,7 @@ impl Tokenizer {
                             self.tokens.push(Token::Number(num));
                             State::Whitespace
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
 
                     State::LineStart => match c {
@@ -163,7 +173,7 @@ impl Tokenizer {
                             self.stack.push(c);
                             State::Identifier
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
 
                     State::QuotedIdentifierOpen => match c {
@@ -186,7 +196,7 @@ impl Tokenizer {
                             self.tokens.push(Token::QuotedIdentifier(text));
                             State::Whitespace
                         }
-                        _ => unexpected()
+                        _ => return unexpected()
                     }
 
                     State::TextOpen => match c {
@@ -209,7 +219,7 @@ impl Tokenizer {
                             self.tokens.push(Token::Text(text));
                             State::Whitespace
                         }
-                        _ => unexpected()
+                        _ => return unexpected()
                     }
 
                     State::Whitespace => match c {
@@ -237,7 +247,7 @@ impl Tokenizer {
                             self.stack.push(c);
                             State::Identifier
                         }
-                        _ => unexpected(),
+                        _ => return unexpected(),
                     }
                 }
 
@@ -257,29 +267,19 @@ impl Tokenizer {
                     self.tokens.push(Token::Number(num));
                 }
                 State::ExpectingComment => {
-                    panic!(
-                        "Expected comment (line {}, column {})",
-                        line_num + 1,
-                        last_char_num + 1,
-                    );
+                    return Err(LexError::expected_comment(position));
                 }
                 State::QuotedIdentifierOpen => {
-                    panic!(
-                        "Quoted identifier not closed (line {}, column {})",
-                        line_num + 1,
-                        last_char_num + 1,
-                    )
+                    //"Quoted identifier not closed (line {}, column {})"
+                    return Err(LexError::unclosed_quoted_identifier(position));
                 }
                 State::QuotedIdentifierClosed => {
                     let text: String = self.stack.drain(..).collect();
                     self.tokens.push(Token::QuotedIdentifier(text));
                 }
                 State::TextOpen => {
-                    panic!(
-                        "String not closed (line {}, column {})",
-                        line_num + 1,
-                        last_char_num + 1,
-                    )
+                    // "String not closed (line {}, column {})"
+                    return Err(LexError::unclosed_quoted_identifier(position));
                 }
                 State::TextClosed => {
                     let text: String = self.stack.drain(..).collect();
@@ -291,7 +291,7 @@ impl Tokenizer {
             self.tokens.push(Token::Newline);
         }
 
-        self
+        Ok(self)
     }
 }
 
