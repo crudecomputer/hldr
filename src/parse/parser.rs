@@ -1,11 +1,4 @@
-use super::{
-    Attribute,
-    Record,
-    Schema,
-    Table,
-    Token,
-    Value,
-};
+use super::{Attribute, Record, Schema, Table, Token, Value};
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -41,11 +34,8 @@ impl Parser {
 
         for token in tokens {
             self.state = match self.state {
-
                 LineStart => match token {
-                    Token::Newline => {
-                        LineStart
-                    }
+                    Token::Newline => LineStart,
                     Token::Indent(indent) => {
                         if indent.len() == 0 {
                             panic!("Empty indent received");
@@ -64,68 +54,68 @@ impl Parser {
                                 1 => ExpectingTable,
                                 2 => ExpectingRecord,
                                 3 => ExpectingColumn,
-                                _ => panic!("Unexpected indentation level")
-                            }
-                            None => panic!("Inconsistent indent")
+                                _ => panic!("Unexpected indentation level"),
+                            },
+                            None => panic!("Inconsistent indent"),
                         }
                     }
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas.push(Schema::new(ident));
                         CreatedSchema
                     }
-                    _ => panic!("Unexpected token {:?}", token)
-                }
+                    _ => panic!("Unexpected token {:?}", token),
+                },
 
                 CreatedSchema | CreatedTable | CreatedRecord | CreatedAttribute => match token {
                     Token::Newline => LineStart,
-                    _ => panic!("Unexpected token {:?}", token)
-                }
+                    _ => panic!("Unexpected token {:?}", token),
+                },
 
                 ExpectingTable => match token {
-                    Token::Newline => {
-                        LineStart
-                    }
+                    Token::Newline => LineStart,
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
-                        self
-                            .schemas.last_mut().expect("No schema to add table to")
-                            .tables.push(Table::new(ident));
+                        self.schemas
+                            .last_mut()
+                            .expect("No schema to add table to")
+                            .tables
+                            .push(Table::new(ident));
 
                         CreatedTable
                     }
 
-                    _ => panic!("Unexpected token {:?}", token)
-                }
+                    _ => panic!("Unexpected token {:?}", token),
+                },
 
                 ExpectingRecord => match token {
-                    Token::Newline => {
-                        LineStart
-                    }
+                    Token::Newline => LineStart,
                     Token::Identifier(_) | Token::Underscore => {
                         let name = match token {
                             Token::Identifier(ident) => Some(ident),
                             Token::Underscore => None,
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         };
 
-                        self
-                            .schemas.last_mut().expect("No schema to find table in")
-                            .tables.last_mut().expect("No table to add record to")
-                            .records.push(Record::new(name));
+                        self.schemas
+                            .last_mut()
+                            .expect("No schema to find table in")
+                            .tables
+                            .last_mut()
+                            .expect("No table to add record to")
+                            .records
+                            .push(Record::new(name));
 
                         CreatedRecord
                     }
-                    _ => panic!("Unexpected token {:?}", token)
-                }
+                    _ => panic!("Unexpected token {:?}", token),
+                },
 
                 ExpectingColumn => match token {
-                    Token::Newline => {
-                        LineStart
-                    }
+                    Token::Newline => LineStart,
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         ExpectingValue(ident)
                     }
-                    _ => panic!("Unexpected token {:?}", token)
-                }
+                    _ => panic!("Unexpected token {:?}", token),
+                },
 
                 ExpectingValue(column) => match token {
                     Token::Boolean(_) | Token::Number(_) | Token::Text(_) => {
@@ -133,19 +123,28 @@ impl Parser {
                             Token::Boolean(b) => Value::Boolean(b),
                             Token::Number(b) => Value::Number(b),
                             Token::Text(b) => Value::Text(b),
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         };
 
-                        self
-                            .schemas.last_mut().expect("No schema to find table in")
-                            .tables.last_mut().expect("No table to find record in")
-                            .records.last_mut().expect("No record to add attribute to")
-                            .attributes.push(Attribute { name: column, value });
+                        self.schemas
+                            .last_mut()
+                            .expect("No schema to find table in")
+                            .tables
+                            .last_mut()
+                            .expect("No table to find record in")
+                            .records
+                            .last_mut()
+                            .expect("No record to add attribute to")
+                            .attributes
+                            .push(Attribute {
+                                name: column,
+                                value,
+                            });
 
                         CreatedAttribute
                     }
-                    _ => panic!("Expected value for attribute")
-                }
+                    _ => panic!("Expected value for attribute"),
+                },
             }
         }
 
@@ -226,9 +225,9 @@ mod tests {
             assert_valid(&spaces(2), &spaces(4), 2);
             assert_valid(&spaces(2), &spaces(6), 3);
 
-            assert_valid(&spaces(4), &spaces(0),  0);
-            assert_valid(&spaces(4), &spaces(4),  1);
-            assert_valid(&spaces(4), &spaces(8),  2);
+            assert_valid(&spaces(4), &spaces(0), 0);
+            assert_valid(&spaces(4), &spaces(4), 1);
+            assert_valid(&spaces(4), &spaces(8), 2);
             assert_valid(&spaces(4), &spaces(12), 3);
 
             assert_valid(&tabs(1), &tabs(0), 0);

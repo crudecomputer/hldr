@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, crate_version};
+use clap::{crate_version, Parser};
 
 /// Placeholder: Easy PostgreSQL data seeding
 #[derive(Parser, Debug)]
@@ -17,7 +17,7 @@ struct Command {
 
     /// Commit the transaction, rolled back by default
     #[clap(long = "commit")]
-    commit: bool
+    commit: bool,
 }
 
 struct Vars {
@@ -27,7 +27,10 @@ struct Vars {
 
 impl Vars {
     fn empty() -> Self {
-        Self { database_conn: None, data_file: None }
+        Self {
+            database_conn: None,
+            data_file: None,
+        }
     }
 }
 
@@ -41,8 +44,10 @@ fn main() {
         (dc, df) => {
             let vars = vars_from_file();
             hldr::place(
-                &dc.unwrap_or_else(|| vars.database_conn.expect("database_conn not found in file")),
-                &df.or_else(|| vars.data_file).unwrap_or_else(|| PathBuf::from("place.hldr")),
+                &dc.unwrap_or_else(|| vars.database_conn
+                    .expect("database_conn not found in file")),
+                &df.or_else(|| vars.data_file)
+                    .unwrap_or_else(|| PathBuf::from("place.hldr")),
                 cmd.commit,
             )
         }

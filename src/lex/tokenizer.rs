@@ -12,7 +12,6 @@ pub enum Token {
     Underscore,
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     ExpectingComment,
@@ -55,7 +54,7 @@ impl Tokenizer {
 
             for c in line.chars() {
                 position.column += 1;
-                
+
                 let unexpected = || Err(LexError::unexpected_character(position, c));
 
                 self.state = match self.state {
@@ -72,14 +71,12 @@ impl Tokenizer {
                             State::Whitespace
                         }
                         _ => return unexpected(),
-                    }
+                    },
 
                     State::ExpectingComment => match c {
-                        '-' => {
-                            State::Comment
-                        }
+                        '-' => State::Comment,
                         _ => return unexpected(),
-                    }
+                    },
 
                     State::Identifier => match c {
                         c if valid_identifier_char(c) => {
@@ -92,7 +89,7 @@ impl Tokenizer {
                             State::Whitespace
                         }
                         _ => return unexpected(),
-                    }
+                    },
 
                     State::Indent => match c {
                         ' ' | '\t' => {
@@ -104,15 +101,9 @@ impl Tokenizer {
                             self.tokens.push(Token::Indent(indent));
 
                             match c {
-                                '"' => {
-                                    State::QuotedIdentifierOpen
-                                }
-                                '\'' => {
-                                    State::TextOpen
-                                }
-                                '-' => {
-                                    State::ExpectingComment
-                                }
+                                '"' => State::QuotedIdentifierOpen,
+                                '\'' => State::TextOpen,
+                                '-' => State::ExpectingComment,
                                 '0'..='9' => {
                                     self.stack.push(c);
                                     State::Integer
@@ -128,7 +119,7 @@ impl Tokenizer {
                                 _ => return unexpected(),
                             }
                         }
-                    }
+                    },
 
                     State::Integer => match c {
                         '0'..='9' => {
@@ -145,18 +136,12 @@ impl Tokenizer {
                             State::Whitespace
                         }
                         _ => return unexpected(),
-                    }
+                    },
 
                     State::LineStart => match c {
-                        '"' => {
-                            State::QuotedIdentifierOpen
-                        }
-                        '\'' => {
-                            State::TextOpen
-                        }
-                        '-' => {
-                            State::ExpectingComment
-                        }
+                        '"' => State::QuotedIdentifierOpen,
+                        '\'' => State::TextOpen,
+                        '-' => State::ExpectingComment,
                         ' ' | '\t' => {
                             self.stack.push(c);
                             State::Indent
@@ -174,17 +159,15 @@ impl Tokenizer {
                             State::Identifier
                         }
                         _ => return unexpected(),
-                    }
+                    },
 
                     State::QuotedIdentifierOpen => match c {
-                        '"' => {
-                            State::QuotedIdentifierClosed
-                        }
+                        '"' => State::QuotedIdentifierClosed,
                         _ => {
                             self.stack.push(c);
                             State::QuotedIdentifierOpen
                         }
-                    }
+                    },
 
                     State::QuotedIdentifierClosed => match c {
                         '"' => {
@@ -196,18 +179,16 @@ impl Tokenizer {
                             self.tokens.push(Token::QuotedIdentifier(text));
                             State::Whitespace
                         }
-                        _ => return unexpected()
-                    }
+                        _ => return unexpected(),
+                    },
 
                     State::TextOpen => match c {
-                        '\'' => {
-                            State::TextClosed
-                        }
+                        '\'' => State::TextClosed,
                         _ => {
                             self.stack.push(c);
                             State::TextOpen
                         }
-                    }
+                    },
 
                     State::TextClosed => match c {
                         '\'' => {
@@ -219,22 +200,14 @@ impl Tokenizer {
                             self.tokens.push(Token::Text(text));
                             State::Whitespace
                         }
-                        _ => return unexpected()
-                    }
+                        _ => return unexpected(),
+                    },
 
                     State::Whitespace => match c {
-                        ' ' | '\t' => {
-                            State::Whitespace
-                        }
-                        '"' => {
-                            State::QuotedIdentifierOpen
-                        }
-                        '\'' => {
-                            State::TextOpen
-                        }
-                        '-' => {
-                            State::ExpectingComment
-                        }
+                        ' ' | '\t' => State::Whitespace,
+                        '"' => State::QuotedIdentifierOpen,
+                        '\'' => State::TextOpen,
+                        '-' => State::ExpectingComment,
                         '0'..='9' => {
                             self.stack.push(c);
                             State::Integer
@@ -248,9 +221,8 @@ impl Tokenizer {
                             State::Identifier
                         }
                         _ => return unexpected(),
-                    }
+                    },
                 }
-
             }
 
             match self.state {
@@ -296,20 +268,19 @@ impl Tokenizer {
 fn identifier_to_token(s: String) -> Token {
     match s.as_ref() {
         "_" => Token::Underscore,
-        "true"  | "t" => Token::Boolean(true),
+        "true" | "t" => Token::Boolean(true),
         "false" | "f" => Token::Boolean(false),
         _ => Token::Identifier(s),
     }
 }
 
 fn valid_identifier_char(c: char) -> bool {
-    c == '_' || (
-        // "alphabetic" isn't enough because that precludes other unicode chars
-        // that are valid in postgres identifiers
-        !c.is_control() &&
-        !c.is_whitespace() &&
-        !c.is_ascii_punctuation()
-    )
+    c == '_'
+        || (
+            // "alphabetic" isn't enough because that precludes other unicode chars
+            // that are valid in postgres identifiers
+            !c.is_control() && !c.is_whitespace() && !c.is_ascii_punctuation()
+        )
 }
 
 #[cfg(test)]
@@ -318,13 +289,15 @@ mod tests {
     fn identifier_tokens() {
         use super::{identifier_to_token, Token as T};
 
-        let assert = |s: &str, token: T| assert_eq!(
-            identifier_to_token(s.to_owned()),
-            token,
-            "{} - {:?}",
-            s,
-            token,
-        );
+        let assert = |s: &str, token: T| {
+            assert_eq!(
+                identifier_to_token(s.to_owned()),
+                token,
+                "{} - {:?}",
+                s,
+                token,
+            )
+        };
 
         assert("_", T::Underscore);
 
@@ -337,9 +310,7 @@ mod tests {
         }
 
         for x in [
-            "T", "True", "TRUE",
-            "F", "False", "FALSE",
-            "anything", "else",
+            "T", "True", "TRUE", "F", "False", "FALSE", "anything", "else",
         ] {
             assert(x, T::Identifier(x.to_owned()));
         }
@@ -368,10 +339,8 @@ mod tests {
         use super::valid_identifier_char as valid;
 
         for c in [
-            '`', '~', '!', '@', '#', '$', '%', '^', '&', '*',
-            '(', ')', '-', '=', '+', '[', '{', ']', '}', '\\',
-            '|', ';', ':', '\'', '"', ',', '<', '.', '>', '/',
-            '?',
+            '`', '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '=', '+', '[', '{',
+            ']', '}', '\\', '|', ';', ':', '\'', '"', ',', '<', '.', '>', '/', '?',
         ] {
             assert!(!valid(c), "{}", c);
         }

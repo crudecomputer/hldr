@@ -67,7 +67,7 @@ pub fn parse(tokens: Vec<Token>) -> Vec<Schema> {
 
 #[cfg(test)]
 mod tests {
-    use super::{*, Token as T};
+    use super::{Token as T, *};
 
     #[test]
     fn empty() {
@@ -76,18 +76,15 @@ mod tests {
 
     #[test]
     fn schema() {
-        let tokens = vec![
-            T::Newline,
-            T::Identifier("public".to_owned()),
-        ];
+        let tokens = vec![T::Newline, T::Identifier("public".to_owned())];
 
-        assert_eq!(parse(tokens), vec![
-
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
                 tables: Vec::new(),
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -100,16 +97,19 @@ mod tests {
             T::Newline,
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
-                name: "schema1".to_owned(),
-                tables: Vec::new(),
-            },
-            Schema {
-                name: "schema2".to_owned(),
-                tables: Vec::new(),
-            },
-        ]);
+        assert_eq!(
+            parse(tokens),
+            vec![
+                Schema {
+                    name: "schema1".to_owned(),
+                    tables: Vec::new(),
+                },
+                Schema {
+                    name: "schema2".to_owned(),
+                    tables: Vec::new(),
+                },
+            ]
+        );
 
         let tokens = vec![
             T::Newline,
@@ -119,16 +119,19 @@ mod tests {
             T::Identifier("schema2".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
-                name: "schema1".to_owned(),
-                tables: Vec::new(),
-            },
-            Schema {
-                name: "schema2".to_owned(),
-                tables: Vec::new(),
-            },
-        ]);
+        assert_eq!(
+            parse(tokens),
+            vec![
+                Schema {
+                    name: "schema1".to_owned(),
+                    tables: Vec::new(),
+                },
+                Schema {
+                    name: "schema2".to_owned(),
+                    tables: Vec::new(),
+                },
+            ]
+        );
     }
 
     #[test]
@@ -151,17 +154,16 @@ mod tests {
             T::Identifier("my_table".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
-                tables: vec![
-                    Table {
-                        name: "my_table".to_owned(),
-                        records: Vec::new(),
-                    }
-                ],
-            },
-        ]);
+                tables: vec![Table {
+                    name: "my_table".to_owned(),
+                    records: Vec::new(),
+                }],
+            },]
+        );
     }
 
     #[test]
@@ -176,8 +178,9 @@ mod tests {
             T::Identifier("table2".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
                 tables: vec![
                     Table {
@@ -189,8 +192,8 @@ mod tests {
                         records: Vec::new(),
                     },
                 ],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -205,8 +208,9 @@ mod tests {
             T::QuotedIdentifier("another table".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public schema".to_owned(),
                 tables: vec![
                     Table {
@@ -218,8 +222,8 @@ mod tests {
                         records: Vec::new(),
                     },
                 ],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -268,22 +272,19 @@ mod tests {
             T::Identifier("kevin".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
-                tables: vec![
-                    Table {
-                        name: "person".to_owned(),
-                        records: vec![
-                            Record {
-                                name: Some("kevin".to_owned()),
-                                attributes: Vec::new(),
-                            }
-                        ]
-                    }
-                ],
-            },
-        ]);
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: Vec::new(),
+                    }]
+                }],
+            },]
+        );
     }
 
     #[test]
@@ -310,8 +311,9 @@ mod tests {
             T::Identifier("cupid".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
                 tables: vec![
                     Table {
@@ -341,8 +343,8 @@ mod tests {
                         ]
                     },
                 ],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -357,22 +359,19 @@ mod tests {
             T::Underscore,
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
-                tables: vec![
-                    Table {
-                        name: "person".to_owned(),
-                        records: vec![
-                            Record {
-                                name: None,
-                                attributes: Vec::new(),
-                            }
-                        ]
-                    }
-                ],
-            },
-        ]);
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: None,
+                        attributes: Vec::new(),
+                    }]
+                }],
+            },]
+        );
     }
 
     #[test]
@@ -399,8 +398,9 @@ mod tests {
             T::Underscore,
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
                 tables: vec![
                     Table {
@@ -430,8 +430,8 @@ mod tests {
                         ]
                     },
                 ],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -458,8 +458,9 @@ mod tests {
             T::Identifier("eiyre".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
                 tables: vec![
                     Table {
@@ -489,8 +490,8 @@ mod tests {
                         ]
                     },
                 ],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -526,27 +527,22 @@ mod tests {
             T::Text("Kevin".to_owned()),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
+        assert_eq!(
+            parse(tokens),
+            vec![Schema {
                 name: "public".to_owned(),
-                tables: vec![
-                    Table {
-                        name: "person".to_owned(),
-                        records: vec![
-                            Record {
-                                name: Some("kevin".to_owned()),
-                                attributes: vec![
-                                    Attribute {
-                                        name: "name".to_owned(),
-                                        value: Value::Text("Kevin".to_owned()),
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]);
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "name".to_owned(),
+                            value: Value::Text("Kevin".to_owned()),
+                        }]
+                    }]
+                }]
+            }]
+        );
     }
 
     #[test]
@@ -592,11 +588,12 @@ mod tests {
             T::Boolean(true),
         ];
 
-        assert_eq!(parse(tokens), vec![
-            Schema {
-                name: "public".to_owned(),
-                tables: vec![
-                    Table {
+        assert_eq!(
+            parse(tokens),
+            vec![
+                Schema {
+                    name: "public".to_owned(),
+                    tables: vec![Table {
                         name: "person".to_owned(),
                         records: vec![
                             Record {
@@ -626,29 +623,23 @@ mod tests {
                                 ],
                             },
                         ],
-                    },
-                ],
-            },
-            Schema {
-                name: "private_schema".to_owned(),
-                tables: vec![
-                    Table {
+                    },],
+                },
+                Schema {
+                    name: "private_schema".to_owned(),
+                    tables: vec![Table {
                         name: "pet".to_owned(),
-                        records: vec![
-                            Record {
-                                name: Some("cupid".to_owned()),
-                                attributes: vec![
-                                    Attribute {
-                                        name: "loves_belly_scratches".to_owned(),
-                                        value: Value::Boolean(true),
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ],
-            }
-        ]);
+                        records: vec![Record {
+                            name: Some("cupid".to_owned()),
+                            attributes: vec![Attribute {
+                                name: "loves_belly_scratches".to_owned(),
+                                value: Value::Boolean(true),
+                            },],
+                        },],
+                    },],
+                }
+            ]
+        );
     }
 
     #[test]

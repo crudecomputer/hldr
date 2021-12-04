@@ -28,19 +28,31 @@ pub struct LexError {
 
 impl LexError {
     pub fn expected_comment(position: Position) -> Self {
-        Self { position, kind: LexErrorKind::ExpectedComment }
+        Self {
+            position,
+            kind: LexErrorKind::ExpectedComment,
+        }
     }
 
     pub fn unclosed_quoted_identifier(position: Position) -> Self {
-        Self { position, kind: LexErrorKind::UnclosedQuotedIdentifier }
+        Self {
+            position,
+            kind: LexErrorKind::UnclosedQuotedIdentifier,
+        }
     }
 
     pub fn unclosed_string(position: Position) -> Self {
-        Self { position, kind: LexErrorKind::UnclosedString }
+        Self {
+            position,
+            kind: LexErrorKind::UnclosedString,
+        }
     }
 
     pub fn unexpected_character(position: Position, c: char) -> Self {
-        Self { position, kind: LexErrorKind::UnexpectedCharacter(c) }
+        Self {
+            position,
+            kind: LexErrorKind::UnexpectedCharacter(c),
+        }
     }
 }
 
