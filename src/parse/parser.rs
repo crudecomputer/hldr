@@ -78,11 +78,17 @@ impl Parser {
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
                 CreatedSchema | CreatedTable | CreatedRecord | CreatedAttribute => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        line += 1;
+                        LineStart
+                    },
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
                 ExpectingTable => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        line += 1;
+                        LineStart
+                    },
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas
                             .last_mut()
@@ -96,7 +102,10 @@ impl Parser {
                 },
 
                 ExpectingRecord => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        line += 1;
+                        LineStart
+                    },
                     Token::Identifier(_) | Token::Underscore => {
                         let name = match token {
                             Token::Identifier(ident) => Some(ident),
@@ -119,7 +128,10 @@ impl Parser {
                 },
 
                 ExpectingColumn => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        line += 1;
+                        LineStart
+                    },
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         ExpectingValue(ident)
                     }

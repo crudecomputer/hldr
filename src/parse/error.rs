@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use super::Token;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParseErrorKind {
     InconsistentIndent { unit: String, received: String },
     MissingColumnValue,
@@ -15,7 +15,7 @@ pub enum ParseErrorKind {
     InvalidIndent(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub line: usize,
     pub kind: ParseErrorKind,
