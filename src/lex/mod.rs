@@ -1,7 +1,7 @@
-mod error;
+pub mod error;
 mod tokenizer;
 
-pub use error::LexError;
+pub use error::{LexError, LexErrorKind};
 pub use tokenizer::Token;
 
 pub fn lex(text: &str) -> Result<Vec<Token>, LexError> {

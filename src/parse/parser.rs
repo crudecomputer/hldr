@@ -1,4 +1,7 @@
-use super::{Attribute, Record, Schema, Table, Token, Value};
+use super::{
+    error::ParseError,
+    Attribute, Record, Schema, Table, Token, Value,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -29,48 +32,55 @@ impl Parser {
         }
     }
 
-    pub fn parse(mut self, tokens: Vec<Token>) -> Self {
+    pub fn parse(mut self, tokens: Vec<Token>) -> Result<Self, ParseError> {
         use State::*;
+
+        let mut line = 1;
 
         for token in tokens {
             self.state = match self.state {
                 LineStart => match token {
-                    Token::Newline => LineStart,
+                    Token::Newline => {
+                        line += 1;
+                        LineStart
+                    },
                     Token::Indent(indent) => {
                         if indent.is_empty() {
-                            panic!("Empty indent received");
+                            return Err(ParseError::empty_indent(line));
                         }
 
                         if !indent.trim().is_empty() {
-                            panic!("Non-whitespace indent received");
+                            return Err(ParseError::invalid_indent(line, indent));
                         }
 
-                        if self.indent_unit.is_none() {
-                            self.indent_unit = Some(indent.clone());
-                        }
+                        let unit = match &self.indent_unit {
+                            Some(u) => u,
+                            None => {
+                                self.indent_unit = Some(indent.clone());
+                                self.indent_unit.as_ref().unwrap()
+                            }
+                        };
 
-                        match indent_level(self.indent_unit.as_ref().unwrap(), &indent) {
+                        match indent_level(&unit, &indent) {
                             Some(level) => match level {
                                 1 => ExpectingTable,
                                 2 => ExpectingRecord,
                                 3 => ExpectingColumn,
-                                _ => panic!("Unexpected indentation level"),
+                                n => return Err(ParseError::unexpected_indent_level(line, n)),
                             },
-                            None => panic!("Inconsistent indent"),
+                            None => return Err(ParseError::inconsistent_indent(line, unit.clone(), indent)),
                         }
-                    }
+                    },
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas.push(Schema::new(ident));
                         CreatedSchema
-                    }
-                    _ => panic!("Unexpected token {:?}", token),
+                    },
+                    _ => return Err(ParseError::unexpected_token(line, token)),
                 },
-
                 CreatedSchema | CreatedTable | CreatedRecord | CreatedAttribute => match token {
                     Token::Newline => LineStart,
-                    _ => panic!("Unexpected token {:?}", token),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
                 },
-
                 ExpectingTable => match token {
                     Token::Newline => LineStart,
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
@@ -81,9 +91,8 @@ impl Parser {
                             .push(Table::new(ident));
 
                         CreatedTable
-                    }
-
-                    _ => panic!("Unexpected token {:?}", token),
+                    },
+                    _ => return Err(ParseError::unexpected_token(line, token)),
                 },
 
                 ExpectingRecord => match token {
@@ -106,7 +115,7 @@ impl Parser {
 
                         CreatedRecord
                     }
-                    _ => panic!("Unexpected token {:?}", token),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
                 },
 
                 ExpectingColumn => match token {
@@ -114,7 +123,7 @@ impl Parser {
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         ExpectingValue(ident)
                     }
-                    _ => panic!("Unexpected token {:?}", token),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
                 },
 
                 ExpectingValue(column) => match token {
@@ -143,16 +152,16 @@ impl Parser {
 
                         CreatedAttribute
                     }
-                    _ => panic!("Expected value for attribute"),
+                    _ => return Err(ParseError::missing_column_value(line)),
                 },
             }
         }
 
         if let ExpectingValue(_) = &self.state {
-            panic!("Expected value for attribute");
+            return Err(ParseError::missing_column_value(line));
         }
 
-        self
+        Ok(self)
     }
 }
 

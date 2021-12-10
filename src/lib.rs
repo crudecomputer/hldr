@@ -8,7 +8,7 @@ pub mod validate;
 pub fn place(connstr: &str, filepath: &Path, commit: bool) {
     let text = fs::read_to_string(&filepath).unwrap();
     let tokens = lex::lex(&text).unwrap();
-    let schemas = parse::parse(tokens);
+    let schemas = parse::parse(tokens).unwrap();
     let validated = validate::validate(schemas);
 
     let mut client = load::new_client(connstr);

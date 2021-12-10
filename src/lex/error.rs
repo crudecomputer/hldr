@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+// TODO: This doesn't belong here
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Position {
     pub line: usize,
@@ -29,29 +30,29 @@ pub struct LexError {
 impl LexError {
     pub fn expected_comment(position: Position) -> Self {
         Self {
-            position,
             kind: LexErrorKind::ExpectedComment,
+            position,
         }
     }
 
     pub fn unclosed_quoted_identifier(position: Position) -> Self {
         Self {
-            position,
             kind: LexErrorKind::UnclosedQuotedIdentifier,
+            position,
         }
     }
 
     pub fn unclosed_string(position: Position) -> Self {
         Self {
-            position,
             kind: LexErrorKind::UnclosedString,
+            position,
         }
     }
 
     pub fn unexpected_character(position: Position, c: char) -> Self {
         Self {
-            position,
             kind: LexErrorKind::UnexpectedCharacter(c),
+            position,
         }
     }
 }
@@ -67,10 +68,27 @@ impl fmt::Display for LexError {
         use LexErrorKind::*;
 
         match self.kind {
-            ExpectedComment => write!(f, "Expected comment {}", self.position),
-            UnclosedQuotedIdentifier => write!(f, "Unclosed quoted identifier {}", self.position),
-            UnclosedString => write!(f, "Unclosed string {}", self.position),
-            UnexpectedCharacter(c) => write!(f, "Unexpected character '{}' {}", c, self.position),
+            ExpectedComment => write!(
+                f,
+                "Expected comment {}",
+                self.position,
+            ),
+            UnclosedQuotedIdentifier => write!(
+                f,
+                "Unclosed quoted identifier {}",
+                self.position,
+            ),
+            UnclosedString => write!(
+                f,
+                "Unclosed string {}",
+                self.position,
+            ),
+            UnexpectedCharacter(c) => write!(
+                f,
+                "Unexpected character `{}` {}",
+                c,
+                self.position,
+            ),
         }
     }
 }

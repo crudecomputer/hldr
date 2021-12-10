@@ -1,6 +1,8 @@
+pub mod error;
 mod parser;
 
 use super::lex::Token;
+pub use error::{ParseError, ParseErrorKind};
 use parser::Parser;
 
 #[derive(Debug, PartialEq)]
@@ -61,8 +63,8 @@ impl Schema {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Vec<Schema> {
-    Parser::new().parse(tokens).schemas
+pub fn parse(tokens: Vec<Token>) -> Result<Vec<Schema>, ParseError> {
+    Ok(Parser::new().parse(tokens)?.schemas)
 }
 
 #[cfg(test)]
