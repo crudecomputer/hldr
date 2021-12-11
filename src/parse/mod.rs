@@ -739,4 +739,92 @@ mod tests {
             Err(ParseError::unexpected_token(4, T::Identifier("name".to_owned())))
         );
     }
+
+    #[test]
+    fn first_line_indented() {
+        let tokens = vec![
+            T::Indent("\t".to_owned()),
+            T::Identifier("identifier".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::missing_schema(1))
+        );
+
+        let tokens = vec![
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("identifier".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::missing_schema(1))
+        );
+    }
+
+    #[test]
+    fn inconsistent_indent() {
+        let tokens = vec![
+            T::Identifier("schema".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("identifier".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("identifier".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::inconsistent_indent(3, "\t\t".to_owned(), "\t".to_owned()))
+        );
+    }
+
+    #[test]
+    fn missing_table() {
+        // For a record to be detected in a schema *without* a table present,
+        // there needs to have already been an indentation unit set by a table
+        // in a previous schema. Otherwise, the indentation prior to the record's
+        // identifier will be set as the indentation unit and, being at indentation
+        // level 1, the identifer will be parsed as a table name.
+        let tokens = vec![
+            T::Identifier("schema1".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Newline,
+            T::Identifier("schema2".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Underscore,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::missing_table(4))
+        );
+    }
+
+    #[test]
+    fn missing_record() {
+        let tokens = vec![
+            T::Identifier("schema".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("table".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("name".to_owned()),
+            T::Text("anonymous".to_owned()),
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::missing_record(3))
+        );
+    }
 }

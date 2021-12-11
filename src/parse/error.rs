@@ -6,6 +6,9 @@ use super::Token;
 pub enum ParseErrorKind {
     InconsistentIndent { unit: String, received: String },
     MissingColumnValue,
+    MissingRecord,
+    MissingSchema,
+    MissingTable,
     UnexpectedIndentLevel(usize),
     UnexpectedToken(Token),
 
@@ -46,6 +49,27 @@ impl ParseError {
     pub fn missing_column_value(line: usize) -> Self {
         Self {
             kind: ParseErrorKind::MissingColumnValue,
+            line,
+        }
+    }
+
+    pub fn missing_record(line: usize) -> Self {
+        Self {
+            kind: ParseErrorKind::MissingRecord,
+            line,
+        }
+    }
+
+    pub fn missing_schema(line: usize) -> Self {
+        Self {
+            kind: ParseErrorKind::MissingSchema,
+            line,
+        }
+    }
+
+    pub fn missing_table(line: usize) -> Self {
+        Self {
+            kind: ParseErrorKind::MissingTable,
             line,
         }
     }
@@ -97,6 +121,21 @@ impl fmt::Display for ParseError {
             MissingColumnValue => write!(
                 f,
                 "Missing column value on line {}",
+                self.line,
+            ),
+            MissingRecord => write!(
+                f,
+                "No record present for column on line {}",
+                self.line,
+            ),
+            MissingSchema => write!(
+                f,
+                "No schema present for object on line {}",
+                self.line,
+            ),
+            MissingTable => write!(
+                f,
+                "No table present for object on line {}",
                 self.line,
             ),
             UnexpectedIndentLevel(level) => write!(

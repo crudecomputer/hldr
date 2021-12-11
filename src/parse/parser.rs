@@ -92,7 +92,7 @@ impl Parser {
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas
                             .last_mut()
-                            .expect("No schema to add table to")
+                            .ok_or_else(|| ParseError::missing_schema(line))?
                             .tables
                             .push(Table::new(ident));
 
@@ -115,10 +115,15 @@ impl Parser {
 
                         self.schemas
                             .last_mut()
-                            .expect("No schema to find table in")
+                            // It shouldn't actually be possible to return this error here,
+                            // since `ExpectingRecord` will only be reached if the indentation
+                            // unit has already been set, meaning a line containing a table has
+                            // to have already been successfully parsed, meaning a schema should
+                            // have to be present.
+                            .ok_or_else(|| ParseError::missing_schema(line))?
                             .tables
                             .last_mut()
-                            .expect("No table to add record to")
+                            .ok_or_else(|| ParseError::missing_table(line))?
                             .records
                             .push(Record::new(name));
 
@@ -149,13 +154,13 @@ impl Parser {
 
                         self.schemas
                             .last_mut()
-                            .expect("No schema to find table in")
+                            .ok_or_else(|| ParseError::missing_schema(line))? // Should never return error
                             .tables
                             .last_mut()
-                            .expect("No table to find record in")
+                            .ok_or_else(|| ParseError::missing_table(line))? // Should never return error
                             .records
                             .last_mut()
-                            .expect("No record to add attribute to")
+                            .ok_or_else(|| ParseError::missing_record(line))?
                             .attributes
                             .push(Attribute {
                                 name: column,
