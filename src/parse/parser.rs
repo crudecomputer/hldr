@@ -61,7 +61,7 @@ impl Parser {
                             }
                         };
 
-                        match indent_level(&unit, &indent) {
+                        match indent_level(unit, &indent) {
                             Some(level) => match level {
                                 1 => ExpectingTable,
                                 2 => ExpectingRecord,
