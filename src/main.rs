@@ -44,8 +44,7 @@ fn main() {
         (dc, df) => {
             let vars = vars_from_file();
             hldr::place(
-                &dc.unwrap_or_else(|| vars.database_conn
-                    .expect("database_conn not found in file")),
+                &dc.unwrap_or_else(|| vars.database_conn.expect("database_conn not found in file")),
                 &df.or(vars.data_file)
                     .unwrap_or_else(|| PathBuf::from("place.hldr")),
                 cmd.commit,

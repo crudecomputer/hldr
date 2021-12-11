@@ -157,7 +157,7 @@ impl fmt::Display for ParseError {
                     Token::Underscore => write!(f, "underscore")?,
                 }
                 write!(f, " on line {}", self.line)
-            },
+            }
         }
     }
 }

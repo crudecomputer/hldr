@@ -73,10 +73,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        assert_eq!(
-            parse(vec![]),
-            Ok(vec![])
-        );
+        assert_eq!(parse(vec![]), Ok(vec![]));
     }
 
     #[test]

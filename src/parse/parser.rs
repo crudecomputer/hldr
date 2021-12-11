@@ -1,7 +1,4 @@
-use super::{
-    error::ParseError,
-    Attribute, Record, Schema, Table, Token, Value,
-};
+use super::{error::ParseError, Attribute, Record, Schema, Table, Token, Value};
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -43,7 +40,7 @@ impl Parser {
                     Token::Newline => {
                         line += 1;
                         LineStart
-                    },
+                    }
                     Token::Indent(indent) => {
                         if indent.is_empty() {
                             return Err(ParseError::empty_indent(line));
@@ -68,27 +65,33 @@ impl Parser {
                                 3 => ExpectingColumn,
                                 n => return Err(ParseError::unexpected_indent_level(line, n)),
                             },
-                            None => return Err(ParseError::inconsistent_indent(line, unit.clone(), indent)),
+                            None => {
+                                return Err(ParseError::inconsistent_indent(
+                                    line,
+                                    unit.clone(),
+                                    indent,
+                                ))
+                            }
                         }
-                    },
+                    }
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas.push(Schema::new(ident));
                         CreatedSchema
-                    },
+                    }
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
                 CreatedSchema | CreatedTable | CreatedRecord | CreatedAttribute => match token {
                     Token::Newline => {
                         line += 1;
                         LineStart
-                    },
+                    }
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
                 ExpectingTable => match token {
                     Token::Newline => {
                         line += 1;
                         LineStart
-                    },
+                    }
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         self.schemas
                             .last_mut()
@@ -97,7 +100,7 @@ impl Parser {
                             .push(Table::new(ident));
 
                         CreatedTable
-                    },
+                    }
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
 
@@ -105,7 +108,7 @@ impl Parser {
                     Token::Newline => {
                         line += 1;
                         LineStart
-                    },
+                    }
                     Token::Identifier(_) | Token::Underscore => {
                         let name = match token {
                             Token::Identifier(ident) => Some(ident),
@@ -136,7 +139,7 @@ impl Parser {
                     Token::Newline => {
                         line += 1;
                         LineStart
-                    },
+                    }
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
                         ExpectingValue(ident)
                     }
