@@ -1,4 +1,8 @@
+pub mod error;
+
 use super::parse::*;
+pub use error::{ValidateError, ValidateErrorKind};
+
 
 #[derive(Debug, PartialEq)]
 pub struct ValidatedSchemas(Vec<Schema>);
@@ -9,7 +13,7 @@ impl ValidatedSchemas {
     }
 }
 
-pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
+pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError> {
     let mut validated: Vec<Schema> = Vec::new();
 
     for schema in schemas {
@@ -35,37 +39,40 @@ pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
             };
 
             for record in table.records {
-                if record.name.is_some() {
-                    assert!(
-                        !validated_table
-                            .records
-                            .iter()
-                            .any(|r| r.name == record.name),
-                        "Duplicate record '{}' in '{}.{}'",
-                        record.name.unwrap(),
-                        validated_schema.name,
-                        validated_table.name,
-                    );
+                if let Some(record_name) = &record.name {
+                    let name_present = validated_table
+                        .records
+                        .iter()
+                        .any(|r| r.name == record.name);
+
+                    if name_present {
+                        return Err(ValidateError {
+                            kind: ValidateErrorKind::DuplicateRecordName(record_name.to_owned()),
+                            schema: validated_schema.name.clone(),
+                            table: validated_table.name.clone(),
+                        });
+                    }
                 }
 
                 validated_table.records.push(Record::new(record.name));
                 let validated_record = validated_table.records.last_mut().unwrap();
 
                 for attribute in record.attributes {
-                    assert!(
-                        !validated_record
-                            .attributes
-                            .iter()
-                            .any(|a| a.name == attribute.name),
-                        "Duplicate attribute '{}' for record '{}' in '{}.{}'",
-                        attribute.name,
-                        validated_record
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| "_".to_owned()),
-                        validated_schema.name,
-                        validated_table.name,
-                    );
+                    let column_present = validated_record
+                        .attributes
+                        .iter()
+                        .any(|a| a.name == attribute.name);
+
+                    if column_present {
+                        return Err(ValidateError {
+                            kind: ValidateErrorKind::DuplicateColumn {
+                                record: validated_record.name.clone(),
+                                column: attribute.name.clone(),
+                            },
+                            schema: validated_schema.name.clone(),
+                            table: validated_table.name.clone(),
+                        });
+                    }
 
                     validated_record.attributes.push(attribute);
                 }
@@ -73,7 +80,7 @@ pub fn validate(schemas: Vec<Schema>) -> ValidatedSchemas {
         }
     }
 
-    ValidatedSchemas(validated)
+    Ok(ValidatedSchemas(validated))
 }
 
 #[cfg(test)]
@@ -82,7 +89,10 @@ mod validate_tests {
 
     #[test]
     fn empty_is_valid() {
-        assert_eq!(validate(Vec::new()), ValidatedSchemas(Vec::new()));
+        assert_eq!(
+            validate(Vec::new()),
+            Ok(ValidatedSchemas(Vec::new()))
+        );
     }
 
     #[test]
@@ -96,7 +106,10 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
     }
 
     #[test]
@@ -107,7 +120,10 @@ mod validate_tests {
         ];
         let output = vec![Schema::new("schema1".to_owned())];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
 
         let input = vec![
             Schema::new("schema1".to_owned()),
@@ -119,7 +135,10 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
     }
 
     #[test]
@@ -160,7 +179,10 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
     }
 
     #[test]
@@ -226,22 +248,31 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate record 'record1' in 'schema1.table1'")]
     fn duplicate_record_names() {
-        validate(vec![Schema {
-            name: "schema1".to_owned(),
-            tables: vec![Table {
-                name: "table1".to_owned(),
-                records: vec![
-                    Record::new(Some("record1".to_owned())),
-                    Record::new(Some("record1".to_owned())),
-                ],
-            }],
-        }]);
+        assert_eq!(
+            validate(vec![Schema {
+                name: "schema1".to_owned(),
+                tables: vec![Table {
+                    name: "table1".to_owned(),
+                    records: vec![
+                        Record::new(Some("record1".to_owned())),
+                        Record::new(Some("record1".to_owned())),
+                    ],
+                }],
+            }]),
+            Err(ValidateError {
+                kind: ValidateErrorKind::DuplicateRecordName("record1".to_owned()),
+                schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+            })
+        );
     }
 
     #[test]
@@ -321,64 +352,83 @@ mod validate_tests {
             }],
         }];
 
-        assert_eq!(validate(input), ValidatedSchemas(output));
+        assert_eq!(
+            validate(input),
+            Ok(ValidatedSchemas(output))
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate attribute 'attr1' for record '_' in 'schema1.table1'")]
     fn duplicate_attribute_names_anonymous() {
-        validate(vec![Schema {
-            name: "schema1".to_owned(),
-            tables: vec![Table {
-                name: "table1".to_owned(),
-                records: vec![Record {
-                    name: None,
-                    attributes: vec![
-                        Attribute {
-                            name: "attr1".to_owned(),
-                            value: Value::Text("Attr1-a".to_owned()),
-                        },
-                        Attribute {
-                            name: "attr2".to_owned(),
-                            value: Value::Text("Attr2".to_owned()),
-                        },
-                        Attribute {
-                            name: "attr1".to_owned(),
-                            value: Value::Text("Attr1-b".to_owned()),
-                        },
-                    ],
+        assert_eq!(
+            validate(vec![Schema {
+                name: "schema1".to_owned(),
+                tables: vec![Table {
+                    name: "table1".to_owned(),
+                    records: vec![Record {
+                        name: None,
+                        attributes: vec![
+                            Attribute {
+                                name: "attr1".to_owned(),
+                                value: Value::Text("Attr1-a".to_owned()),
+                            },
+                            Attribute {
+                                name: "attr2".to_owned(),
+                                value: Value::Text("Attr2".to_owned()),
+                            },
+                            Attribute {
+                                name: "attr1".to_owned(),
+                                value: Value::Text("Attr1-b".to_owned()),
+                            },
+                        ],
+                    }],
                 }],
-            }],
-        }]);
+            }]),
+            Err(ValidateError {
+                kind: ValidateErrorKind::DuplicateColumn {
+                    record: None,
+                    column: "attr1".to_owned(),
+                },
+                schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+            })
+        );
     }
 
     #[test]
-    #[should_panic(
-        expected = "Duplicate attribute 'attr1' for record 'my_record' in 'schema1.table1'"
-    )]
     fn duplicate_attribute_names_named_record() {
-        validate(vec![Schema {
-            name: "schema1".to_owned(),
-            tables: vec![Table {
-                name: "table1".to_owned(),
-                records: vec![Record {
-                    name: Some("my_record".to_owned()),
-                    attributes: vec![
-                        Attribute {
-                            name: "attr1".to_owned(),
-                            value: Value::Text("Attr1-a".to_owned()),
-                        },
-                        Attribute {
-                            name: "attr2".to_owned(),
-                            value: Value::Text("Attr2".to_owned()),
-                        },
-                        Attribute {
-                            name: "attr1".to_owned(),
-                            value: Value::Text("Attr1-b".to_owned()),
-                        },
-                    ],
+        assert_eq!(
+            validate(vec![Schema {
+                name: "schema1".to_owned(),
+                tables: vec![Table {
+                    name: "table1".to_owned(),
+                    records: vec![Record {
+                        name: Some("my_record".to_owned()),
+                        attributes: vec![
+                            Attribute {
+                                name: "attr1".to_owned(),
+                                value: Value::Text("Attr1-a".to_owned()),
+                            },
+                            Attribute {
+                                name: "attr2".to_owned(),
+                                value: Value::Text("Attr2".to_owned()),
+                            },
+                            Attribute {
+                                name: "attr1".to_owned(),
+                                value: Value::Text("Attr1-b".to_owned()),
+                            },
+                        ],
+                    }],
                 }],
-            }],
-        }]);
+            }]),
+            Err(ValidateError {
+                kind: ValidateErrorKind::DuplicateColumn {
+                    record: Some("my_record".to_owned()),
+                    column: "attr1".to_owned(),
+                },
+                schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+            })
+        );
     }
 }

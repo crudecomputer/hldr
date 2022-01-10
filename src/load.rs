@@ -73,7 +73,7 @@ mod load_tests {
 
     #[test]
     fn loads() {
-        let v = validate(vec![Schema {
+        let validated = validate(vec![Schema {
             name: "hldr_test_schema".to_owned(),
             tables: vec![Table {
                 name: "table1".to_owned(),
@@ -114,7 +114,7 @@ mod load_tests {
                     },
                 ],
             }],
-        }]);
+        }]).unwrap();
 
         let mut client = new_client(&env::var("HLDR_TEST_DATABASE_URL").unwrap());
         let mut transaction = client.transaction().unwrap();
@@ -141,7 +141,7 @@ mod load_tests {
             )
             .unwrap();
 
-        load(&mut transaction, &v);
+        load(&mut transaction, &validated);
 
         let rows = transaction
             .query(

@@ -14,7 +14,7 @@ pub fn place(connstr: &str, filepath: &Path, commit: bool) {
     let mut client = load::new_client(connstr);
     let mut transaction = client.transaction().unwrap();
 
-    load::load(&mut transaction, &validated);
+    load::load(&mut transaction, &validated.unwrap());
 
     if commit {
         println!("Committing changes");
