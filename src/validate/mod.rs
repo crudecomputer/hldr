@@ -66,7 +66,7 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
                         return Err(ValidateError {
                             kind: ValidateErrorKind::DuplicateColumn {
                                 record: validated_record.name.clone(),
-                                column: attribute.name.clone(),
+                                column: attribute.name,
                             },
                             schema: validated_schema.name.clone(),
                             table: validated_table.name.clone(),
