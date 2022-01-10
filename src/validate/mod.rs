@@ -3,7 +3,6 @@ pub mod error;
 use super::parse::*;
 pub use error::{ValidateError, ValidateErrorKind};
 
-
 #[derive(Debug, PartialEq)]
 pub struct ValidatedSchemas(Vec<Schema>);
 
@@ -89,10 +88,7 @@ mod validate_tests {
 
     #[test]
     fn empty_is_valid() {
-        assert_eq!(
-            validate(Vec::new()),
-            Ok(ValidatedSchemas(Vec::new()))
-        );
+        assert_eq!(validate(Vec::new()), Ok(ValidatedSchemas(Vec::new())));
     }
 
     #[test]
@@ -106,10 +102,7 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
     }
 
     #[test]
@@ -120,10 +113,7 @@ mod validate_tests {
         ];
         let output = vec![Schema::new("schema1".to_owned())];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
 
         let input = vec![
             Schema::new("schema1".to_owned()),
@@ -135,10 +125,7 @@ mod validate_tests {
             Schema::new("schema2".to_owned()),
         ];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
     }
 
     #[test]
@@ -179,10 +166,7 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
     }
 
     #[test]
@@ -248,10 +232,7 @@ mod validate_tests {
             },
         ];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
     }
 
     #[test]
@@ -352,10 +333,7 @@ mod validate_tests {
             }],
         }];
 
-        assert_eq!(
-            validate(input),
-            Ok(ValidatedSchemas(output))
-        );
+        assert_eq!(validate(input), Ok(ValidatedSchemas(output)));
     }
 
     #[test]

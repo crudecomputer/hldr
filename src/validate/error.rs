@@ -3,7 +3,10 @@ use std::{error::Error, fmt};
 #[derive(Debug, PartialEq)]
 pub enum ValidateErrorKind {
     DuplicateRecordName(String),
-    DuplicateColumn { record: Option<String>, column: String },
+    DuplicateColumn {
+        record: Option<String>,
+        column: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -27,15 +30,14 @@ impl fmt::Display for ValidateError {
             DuplicateRecordName(name) => write!(
                 f,
                 "Duplicate record '{}' in '{}.{}'",
-                name,
-                self.schema,
-                self.table,
+                name, self.schema, self.table,
             ),
             DuplicateColumn { record, column } => write!(
                 f,
                 "Duplicate column '{}' for record '{}' in '{}.{}'",
                 column,
-                record.as_ref()
+                record
+                    .as_ref()
                     .map(|name| format!("record '{}'", name))
                     .unwrap_or_else(|| "anonymous record".to_owned()),
                 self.schema,

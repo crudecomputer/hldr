@@ -68,27 +68,10 @@ impl fmt::Display for LexError {
         use LexErrorKind::*;
 
         match self.kind {
-            ExpectedComment => write!(
-                f,
-                "Expected comment {}",
-                self.position,
-            ),
-            UnclosedQuotedIdentifier => write!(
-                f,
-                "Unclosed quoted identifier {}",
-                self.position,
-            ),
-            UnclosedString => write!(
-                f,
-                "Unclosed string {}",
-                self.position,
-            ),
-            UnexpectedCharacter(c) => write!(
-                f,
-                "Unexpected character `{}` {}",
-                c,
-                self.position,
-            ),
+            ExpectedComment => write!(f, "Expected comment {}", self.position,),
+            UnclosedQuotedIdentifier => write!(f, "Unclosed quoted identifier {}", self.position,),
+            UnclosedString => write!(f, "Unclosed string {}", self.position,),
+            UnexpectedCharacter(c) => write!(f, "Unexpected character `{}` {}", c, self.position,),
         }
     }
 }

@@ -114,7 +114,8 @@ mod load_tests {
                     },
                 ],
             }],
-        }]).unwrap();
+        }])
+        .unwrap();
 
         let mut client = new_client(&env::var("HLDR_TEST_DATABASE_URL").unwrap());
         let mut transaction = client.transaction().unwrap();

@@ -100,49 +100,23 @@ impl fmt::Display for ParseError {
         use ParseErrorKind::*;
 
         match &self.kind {
-            EmptyIndent => write!(
-                f,
-                "Empty indent on line {}",
-                self.line,
-            ),
+            EmptyIndent => write!(f, "Empty indent on line {}", self.line,),
             InconsistentIndent { unit, received } => write!(
                 f,
                 "Expected indentation unit of '{}', received '{}' on line {}",
-                unit,
-                received,
-                self.line,
+                unit, received, self.line,
             ),
-            InvalidIndent(indent) => write!(
-                f,
-                "Invalid indentation '{}' on line {}",
-                indent,
-                self.line,
-            ),
-            MissingColumnValue => write!(
-                f,
-                "Missing column value on line {}",
-                self.line,
-            ),
-            MissingRecord => write!(
-                f,
-                "No record present for column on line {}",
-                self.line,
-            ),
-            MissingSchema => write!(
-                f,
-                "No schema present for object on line {}",
-                self.line,
-            ),
-            MissingTable => write!(
-                f,
-                "No table present for object on line {}",
-                self.line,
-            ),
+            InvalidIndent(indent) => {
+                write!(f, "Invalid indentation '{}' on line {}", indent, self.line,)
+            }
+            MissingColumnValue => write!(f, "Missing column value on line {}", self.line,),
+            MissingRecord => write!(f, "No record present for column on line {}", self.line,),
+            MissingSchema => write!(f, "No schema present for object on line {}", self.line,),
+            MissingTable => write!(f, "No table present for object on line {}", self.line,),
             UnexpectedIndentLevel(level) => write!(
                 f,
                 "Unexpected indentation level {} on line {}",
-                level,
-                self.line,
+                level, self.line,
             ),
             UnexpectedToken(t) => {
                 write!(f, "Unexpected ")?;
