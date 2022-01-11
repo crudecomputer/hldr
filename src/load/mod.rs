@@ -9,7 +9,7 @@ pub use error::{ClientError, LoadError};
 
 pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
     let mut config = Config::from_str(connstr)
-        .map_err(|e| ClientError::config_error(e))?;
+        .map_err(ClientError::config_error)?;
 
     config.application_name("hldr");
 
@@ -18,7 +18,7 @@ pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
     }
 
     config.connect(NoTls)
-        .map_err(|e| ClientError::connection_error(e))
+        .map_err(ClientError::connection_error)
 }
 
 pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Result<(), LoadError> {
@@ -53,7 +53,7 @@ pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Resu
                 );
 
                 transaction.execute(&statement, &[])
-                    .map_err(|e| LoadError::new(e))?;
+                    .map_err(LoadError::new)?;
             }
         }
     }
