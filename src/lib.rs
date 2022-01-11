@@ -11,10 +11,10 @@ pub fn place(connstr: &str, filepath: &Path, commit: bool) {
     let schemas = parse::parse(tokens).unwrap();
     let validated = validate::validate(schemas);
 
-    let mut client = load::new_client(connstr);
+    let mut client = load::new_client(connstr).unwrap();
     let mut transaction = client.transaction().unwrap();
 
-    load::load(&mut transaction, &validated.unwrap());
+    load::load(&mut transaction, &validated.unwrap()).unwrap();
 
     if commit {
         println!("Committing changes");

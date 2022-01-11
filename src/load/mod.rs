@@ -1,11 +1,15 @@
+mod error;
+
 use std::{str::FromStr, time::Duration};
 
 use postgres::{config::Config, Client, NoTls, Transaction};
 
 use super::{parse::Value, validate::ValidatedSchemas};
+pub use error::{ClientError, LoadError};
 
-pub fn new_client(connstr: &str) -> Client {
-    let mut config = Config::from_str(connstr).unwrap();
+pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
+    let mut config = Config::from_str(connstr)
+        .map_err(|e| ClientError::config_error(e))?;
 
     config.application_name("hldr");
 
@@ -13,10 +17,11 @@ pub fn new_client(connstr: &str) -> Client {
         config.connect_timeout(Duration::new(30, 0));
     }
 
-    config.connect(NoTls).unwrap()
+    config.connect(NoTls)
+        .map_err(|e| ClientError::connection_error(e))
 }
 
-pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {
+pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Result<(), LoadError> {
     for schema in validated.schemas() {
         for table in &schema.tables {
             for record in &table.records {
@@ -47,10 +52,13 @@ pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) {
                     schema.name, table.name, columns_string, values_string,
                 );
 
-                transaction.execute(&statement, &[]).unwrap();
+                transaction.execute(&statement, &[])
+                    .map_err(|e| LoadError::new(e))?;
             }
         }
     }
+
+    Ok(())
 }
 
 fn literal_value(v: &Value) -> String {
@@ -117,7 +125,7 @@ mod load_tests {
         }])
         .unwrap();
 
-        let mut client = new_client(&env::var("HLDR_TEST_DATABASE_URL").unwrap());
+        let mut client = new_client(&env::var("HLDR_TEST_DATABASE_URL").unwrap()).unwrap();
         let mut transaction = client.transaction().unwrap();
 
         transaction
@@ -142,7 +150,7 @@ mod load_tests {
             )
             .unwrap();
 
-        load(&mut transaction, &validated);
+        load(&mut transaction, &validated).unwrap();
 
         let rows = transaction
             .query(
