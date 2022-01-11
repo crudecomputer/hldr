@@ -39,7 +39,7 @@ fn main() {
 
     match (cmd.database_conn, cmd.data_file) {
         (Some(database_conn), Some(data_file)) => {
-            hldr::place(&database_conn, &data_file, cmd.commit);
+            hldr::place(&database_conn, &data_file, cmd.commit).unwrap();
         }
         (dc, df) => {
             let vars = vars_from_file();
@@ -48,7 +48,7 @@ fn main() {
                 &df.or(vars.data_file)
                     .unwrap_or_else(|| PathBuf::from("place.hldr")),
                 cmd.commit,
-            )
+            ).unwrap()
         }
     }
 }

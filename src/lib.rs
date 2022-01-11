@@ -1,25 +1,30 @@
-use std::{fs, path::Path};
+use std::{error:: Error, fs, path::Path};
 
+pub mod error;
 pub mod lex;
 pub mod load;
 pub mod parse;
 pub mod validate;
 
-pub fn place(connstr: &str, filepath: &Path, commit: bool) {
-    let text = fs::read_to_string(&filepath).unwrap();
-    let tokens = lex::lex(&text).unwrap();
-    let schemas = parse::parse(tokens).unwrap();
-    let validated = validate::validate(schemas);
+pub use error::{HldrError, HldrErrorKind};
 
-    let mut client = load::new_client(connstr).unwrap();
-    let mut transaction = client.transaction().unwrap();
+pub fn place(connstr: &str, filepath: &Path, commit: bool) -> Result<(), Box<dyn Error>> {
+    let text = fs::read_to_string(&filepath)?;
+    let tokens = lex::lex(&text)?;
+    let schemas = parse::parse(tokens)?;
+    let validated = validate::validate(schemas)?;
 
-    load::load(&mut transaction, &validated.unwrap()).unwrap();
+    let mut client = load::new_client(connstr)?;
+    let mut transaction = client.transaction()?;
+
+    load::load(&mut transaction, &validated)?;
 
     if commit {
         println!("Committing changes");
-        transaction.commit().unwrap();
+        transaction.commit()?;
     } else {
         println!("Rolling back changes, pass `--commit` to apply")
     }
+
+    Ok(())
 }
