@@ -16,11 +16,17 @@ pub struct ClientError {
 
 impl ClientError {
     pub fn config_error(error: PostgresError) -> Self {
-        Self { kind: ClientErrorKind::Config, error }
+        Self {
+            kind: ClientErrorKind::Config,
+            error,
+        }
     }
 
     pub fn connection_error(error: PostgresError) -> Self {
-        Self { kind: ClientErrorKind::Connection, error }
+        Self {
+            kind: ClientErrorKind::Connection,
+            error,
+        }
     }
 }
 

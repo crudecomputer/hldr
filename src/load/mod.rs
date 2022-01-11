@@ -8,8 +8,7 @@ use super::{parse::Value, validate::ValidatedSchemas};
 pub use error::{ClientError, LoadError};
 
 pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
-    let mut config = Config::from_str(connstr)
-        .map_err(ClientError::config_error)?;
+    let mut config = Config::from_str(connstr).map_err(ClientError::config_error)?;
 
     config.application_name("hldr");
 
@@ -17,8 +16,7 @@ pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
         config.connect_timeout(Duration::new(30, 0));
     }
 
-    config.connect(NoTls)
-        .map_err(ClientError::connection_error)
+    config.connect(NoTls).map_err(ClientError::connection_error)
 }
 
 pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Result<(), LoadError> {
@@ -52,7 +50,8 @@ pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Resu
                     schema.name, table.name, columns_string, values_string,
                 );
 
-                transaction.execute(&statement, &[])
+                transaction
+                    .execute(&statement, &[])
                     .map_err(LoadError::new)?;
             }
         }
