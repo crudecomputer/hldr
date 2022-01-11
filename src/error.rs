@@ -2,9 +2,7 @@ use std::{error::Error, fmt};
 
 use postgres::error::Error as PostgresError;
 
-use crate::{lex, parse, validate, load};
-
-//use 
+use crate::{lex, load, parse, validate};
 
 #[derive(Debug)]
 pub enum HldrErrorKind {

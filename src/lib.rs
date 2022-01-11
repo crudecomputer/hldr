@@ -1,4 +1,4 @@
-use std::{error:: Error, fs, path::Path};
+use std::{error::Error, fs, path::Path};
 
 pub mod error;
 pub mod lex;

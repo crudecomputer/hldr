@@ -48,7 +48,8 @@ fn main() {
                 &df.or(vars.data_file)
                     .unwrap_or_else(|| PathBuf::from("place.hldr")),
                 cmd.commit,
-            ).unwrap()
+            )
+            .unwrap()
         }
     }
 }
