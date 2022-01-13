@@ -121,6 +121,7 @@ impl fmt::Display for ParseError {
             UnexpectedToken(t) => {
                 write!(f, "Unexpected ")?;
                 match t {
+                    Token::AtSign => write!(f, "'@'")?,
                     Token::Boolean(b) => write!(f, "`{}`", b)?,
                     Token::Identifier(i) => write!(f, "identifier `{}`", i)?,
                     Token::Indent(_) => write!(f, "indent")?,

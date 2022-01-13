@@ -267,6 +267,59 @@ mod tests {
     }
 
     #[test]
+    fn at_sign_alone() {
+        assert_eq!(
+            lex("@"),
+            Err(E {
+                position: P { line: 1, column: 1 },
+                kind: K::UnexpectedCharacter('@'),
+            })
+        );
+        assert_eq!(
+            lex("\t\t@"),
+            Err(E {
+                position: P { line: 1, column: 3 },
+                kind: K::UnexpectedCharacter('@'),
+            })
+        );
+    }
+
+    #[test]
+    fn at_sign_identifiers_whitespace_before() {
+        assert_eq!(
+            lex("some @identifiers"),
+            Err(E {
+                position: P { line: 1, column: 6 },
+                kind: K::UnexpectedCharacter('@'),
+            })
+        );
+    }
+
+    #[test]
+    fn at_sign_identifiers_whitespace_after() {
+        assert_eq!(
+            lex("some@ identifiers"),
+            Err(E {
+                position: P { line: 1, column: 6 },
+                kind: K::UnexpectedCharacter(' '),
+            })
+        );
+    }
+
+    #[test]
+    fn at_sign_in_identifiers() {
+        assert_eq!(
+            lex("some@identifier"),
+            Ok(vec![
+              T::Identifier("some".to_owned()),
+              T::AtSign,
+              T::Identifier("identifier".to_owned()),
+              T::Newline,
+            ])
+        );
+    }
+
+    #[test]
     fn good_file() {
         let file = r#"public
   -- This is a newline comment

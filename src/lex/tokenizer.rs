@@ -2,6 +2,7 @@ use super::error::{LexError, Position};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
+    AtSign,
     Boolean(bool),
     Identifier(String),
     Indent(String),
@@ -14,17 +15,18 @@ pub enum Token {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    ExpectingComment,
     Comment,
+    Decimal,
+    ExpectingComment,
+    ExpectingIdentifier,
     Indent,
     Identifier,
     Integer,
-    Decimal,
     LineStart,
-    QuotedIdentifierOpen,
     QuotedIdentifierClosed,
-    TextOpen,
+    QuotedIdentifierOpen,
     TextClosed,
+    TextOpen,
     Whitespace,
 }
 
@@ -78,10 +80,25 @@ impl Tokenizer {
                         _ => return unexpected(),
                     },
 
+                    State::ExpectingIdentifier => match c {
+                        '"' => State::QuotedIdentifierOpen,
+                        c if valid_identifier_char(c) => {
+                            self.stack.push(c);
+                            State::Identifier
+                        },
+                        _ => return unexpected(),
+                    },
+
                     State::Identifier => match c {
                         c if valid_identifier_char(c) => {
                             self.stack.push(c);
                             State::Identifier
+                        }
+                        '@' => {
+                            let ident: String = self.stack.drain(..).collect();
+                            self.tokens.push(identifier_to_token(ident));
+                            self.tokens.push(Token::AtSign);
+                            State::ExpectingIdentifier
                         }
                         ' ' | '\t' => {
                             let ident: String = self.stack.drain(..).collect();
