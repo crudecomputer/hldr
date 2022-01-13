@@ -127,6 +127,7 @@ impl fmt::Display for ParseError {
                     Token::Indent(_) => write!(f, "indent")?,
                     Token::Newline => write!(f, "newline")?,
                     Token::Number(_) => write!(f, "number")?,
+                    Token::Period => write!(f, "'.'")?,
                     Token::QuotedIdentifier(i) => write!(f, "quoted identifier `\"{}\"`", i)?,
                     Token::Text(_) => write!(f, "string")?,
                     Token::Underscore => write!(f, "underscore")?,

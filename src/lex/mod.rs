@@ -317,6 +317,175 @@ mod tests {
               T::Newline,
             ])
         );
+        assert_eq!(
+            lex(r#""some"@"identifier""#),
+            Ok(vec![
+              T::QuotedIdentifier("some".to_owned()),
+              T::AtSign,
+              T::QuotedIdentifier("identifier".to_owned()),
+              T::Newline,
+            ])
+        );
+    }
+
+    #[test]
+    fn period_alone() {
+        assert_eq!(
+            lex("."),
+            Err(E {
+                position: P { line: 1, column: 1 },
+                kind: K::ExpectedNumber,
+            })
+        );
+        assert_eq!(
+            lex("\t\t."),
+            Err(E {
+                position: P { line: 1, column: 3 },
+                kind: K::ExpectedNumber,
+            })
+        );
+        assert_eq!(
+            lex("\t\t. "),
+            Err(E {
+                position: P { line: 1, column: 4 },
+                kind: K::UnexpectedCharacter(' '),
+            })
+        );
+    }
+
+    #[test]
+    fn period_identifiers_whitespace_before() {
+        assert_eq!(
+            lex("some .identifiers"),
+            Err(E {
+                position: P { line: 1, column: 7 },
+                // Expects there to be a number following
+                kind: K::UnexpectedCharacter('i'),
+            })
+        );
+        assert_eq!(
+            lex(r#""some" ."identifiers""#),
+            Err(E {
+                position: P { line: 1, column: 9 },
+                kind: K::UnexpectedCharacter('"'),
+            })
+        );
+    }
+
+    #[test]
+    fn period_identifiers_whitespace_after() {
+        assert_eq!(
+            lex("some. identifiers"),
+            Err(E {
+                position: P { line: 1, column: 6 },
+                kind: K::UnexpectedCharacter(' '),
+            })
+        );
+        assert_eq!(
+            lex(r#""some". "identifiers""#),
+            Err(E {
+                position: P { line: 1, column: 8 },
+                kind: K::UnexpectedCharacter(' '),
+            })
+        );
+    }
+
+    #[test]
+    fn period_in_identifiers() {
+        assert_eq!(
+            lex("some.identifier"),
+            Ok(vec![
+              T::Identifier("some".to_owned()),
+              T::Period,
+              T::Identifier("identifier".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex(r#""some"."identifier""#),
+            Ok(vec![
+              T::QuotedIdentifier("some".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("identifier".to_owned()),
+              T::Newline,
+            ])
+        );
+    }
+
+    #[test]
+    fn fully_qualified_reference() {
+        assert_eq!(
+            lex("schema.table@record.column"),
+            Ok(vec![
+              T::Identifier("schema".to_owned()),
+              T::Period,
+              T::Identifier("table".to_owned()),
+              T::AtSign,
+              T::Identifier("record".to_owned()),
+              T::Period,
+              T::Identifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 schema2.table2@record2.column2"),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::Identifier("schema2".to_owned()),
+              T::Period,
+              T::Identifier("table2".to_owned()),
+              T::AtSign,
+              T::Identifier("record2".to_owned()),
+              T::Period,
+              T::Identifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex(r#""schema"."some table @ "@"some record"."column""#),
+            Ok(vec![
+              T::QuotedIdentifier("schema".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("some table @ ".to_owned()),
+              T::AtSign,
+              T::QuotedIdentifier("some record".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 \"schema2\".\"table2\"@\"record2\".\"column2\""),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::QuotedIdentifier("schema2".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("table2".to_owned()),
+              T::AtSign,
+              T::QuotedIdentifier("record2".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
     }
 
     #[test]

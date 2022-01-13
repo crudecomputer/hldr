@@ -8,6 +8,7 @@ pub enum Token {
     Indent(String),
     Newline,
     Number(String),
+    Period,
     QuotedIdentifier(String),
     Text(String),
     Underscore,
@@ -17,6 +18,7 @@ pub enum Token {
 pub enum State {
     Comment,
     Decimal,
+    DecimalExpectingNumber,
     ExpectingComment,
     ExpectingIdentifier,
     Indent,
@@ -75,6 +77,15 @@ impl Tokenizer {
                         _ => return unexpected(),
                     },
 
+                    State::DecimalExpectingNumber => match c {
+                        '0'..='9' => {
+                            self.stack.push('.');
+                            self.stack.push(c);
+                            State::Decimal
+                        }
+                        _ => return unexpected(),
+                    },
+
                     State::ExpectingComment => match c {
                         '-' => State::Comment,
                         _ => return unexpected(),
@@ -94,16 +105,22 @@ impl Tokenizer {
                             self.stack.push(c);
                             State::Identifier
                         }
-                        '@' => {
+                        ' ' | '\t' | '.' | '@' => {
                             let ident: String = self.stack.drain(..).collect();
                             self.tokens.push(identifier_to_token(ident));
-                            self.tokens.push(Token::AtSign);
-                            State::ExpectingIdentifier
-                        }
-                        ' ' | '\t' => {
-                            let ident: String = self.stack.drain(..).collect();
-                            self.tokens.push(identifier_to_token(ident));
-                            State::Whitespace
+
+                            match c {
+                                ' ' | '\t' => State::Whitespace,
+                                '@' => {
+                                    self.tokens.push(Token::AtSign);
+                                    State::ExpectingIdentifier
+                                },
+                                '.' => {
+                                    self.tokens.push(Token::Period);
+                                    State::ExpectingIdentifier
+                                },
+                                _ => unreachable!()
+                            }
                         }
                         _ => return unexpected(),
                     },
@@ -117,17 +134,18 @@ impl Tokenizer {
                             let indent: String = self.stack.drain(..).collect();
                             self.tokens.push(Token::Indent(indent));
 
+                            // TODO: Should this be accepting numbers or text values?
+                            //
+                            // Syntantically only identifiers are allowed after an indent,
+                            // but is that the job of the parser to exclude them?
                             match c {
                                 '"' => State::QuotedIdentifierOpen,
                                 '\'' => State::TextOpen,
                                 '-' => State::ExpectingComment,
+                                '.' => State::DecimalExpectingNumber,
                                 '0'..='9' => {
                                     self.stack.push(c);
                                     State::Integer
-                                }
-                                '.' => {
-                                    self.stack.push(c);
-                                    State::Decimal
                                 }
                                 c if valid_identifier_char(c) => {
                                     self.stack.push(c);
@@ -159,6 +177,7 @@ impl Tokenizer {
                         '"' => State::QuotedIdentifierOpen,
                         '\'' => State::TextOpen,
                         '-' => State::ExpectingComment,
+                        '.' => State::DecimalExpectingNumber,
                         ' ' | '\t' => {
                             self.stack.push(c);
                             State::Indent
@@ -166,10 +185,6 @@ impl Tokenizer {
                         '0'..='9' => {
                             self.stack.push(c);
                             State::Integer
-                        }
-                        '.' => {
-                            self.stack.push(c);
-                            State::Decimal
                         }
                         c if valid_identifier_char(c) => {
                             self.stack.push(c);
@@ -187,14 +202,28 @@ impl Tokenizer {
                     },
 
                     State::QuotedIdentifierClosed => match c {
+                        // This accounts for escaping double quotes in a quoted identifier,
+                        // eg. "as""df" or "as""""df"
                         '"' => {
                             self.stack.push('"');
                             State::QuotedIdentifierOpen
                         }
-                        ' ' | '\t' => {
+                        ' ' | '\t' | '@' | '.' => {
                             let text: String = self.stack.drain(..).collect();
                             self.tokens.push(Token::QuotedIdentifier(text));
-                            State::Whitespace
+
+                            match c {
+                                ' ' | '\t' => State::Whitespace,
+                                '@' => {
+                                    self.tokens.push(Token::AtSign);
+                                    State::ExpectingIdentifier
+                                },
+                                '.' => {
+                                    self.tokens.push(Token::Period);
+                                    State::ExpectingIdentifier
+                                }
+                                _ => unreachable!()
+                            }
                         }
                         _ => return unexpected(),
                     },
@@ -243,6 +272,12 @@ impl Tokenizer {
             }
 
             match self.state {
+                State::DecimalExpectingNumber => {
+                    return Err(LexError::expected_number(position));
+                }
+                State::ExpectingComment => {
+                    return Err(LexError::expected_comment(position));
+                }
                 State::Identifier => {
                     let ident: String = self.stack.drain(..).collect();
                     self.tokens.push(identifier_to_token(ident));
@@ -255,22 +290,19 @@ impl Tokenizer {
                     let num: String = self.stack.drain(..).collect();
                     self.tokens.push(Token::Number(num));
                 }
-                State::ExpectingComment => {
-                    return Err(LexError::expected_comment(position));
-                }
-                State::QuotedIdentifierOpen => {
-                    return Err(LexError::unclosed_quoted_identifier(position));
-                }
                 State::QuotedIdentifierClosed => {
                     let text: String = self.stack.drain(..).collect();
                     self.tokens.push(Token::QuotedIdentifier(text));
                 }
-                State::TextOpen => {
-                    return Err(LexError::unclosed_string(position));
+                State::QuotedIdentifierOpen => {
+                    return Err(LexError::unclosed_quoted_identifier(position));
                 }
                 State::TextClosed => {
                     let text: String = self.stack.drain(..).collect();
                     self.tokens.push(Token::Text(text));
+                }
+                State::TextOpen => {
+                    return Err(LexError::unclosed_string(position));
                 }
                 _ => {}
             }
