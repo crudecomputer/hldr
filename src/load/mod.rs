@@ -65,6 +65,7 @@ fn literal_value(v: &Value) -> String {
         Value::Boolean(b) => b.to_string(),
         Value::Number(n) => n.clone(),
         Value::Text(t) => format!("'{}'", t),
+        _ => panic!("Value not supported: {:?}", v),
     }
 }
 

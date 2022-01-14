@@ -1,4 +1,4 @@
-use super::{error::ParseError, Attribute, Record, Schema, Table, Token, Value};
+use super::{error::ParseError, Attribute, Record, Schema, Table, Token, Value, ReferenceValue};
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -11,6 +11,36 @@ pub enum State {
     ExpectingRecord,
     ExpectingColumn,
     ExpectingValue(String),
+    IdentifierExpectingReferenceValue {
+        column: String,
+        identifier: String,
+    },
+    SchemaQualifiedReferenceValueExpectingTable {
+        column: String,
+        schema: String,
+    },
+    SchemaQualifiedReferenceValueExpectingAtSign {
+        column: String,
+        schema: String,
+        table: String,
+    },
+    SchemaQualifiedReferenceValueExpectingRecord {
+        column: String,
+        schema: String,
+        table: String,
+    },
+    SchemaQualifiedReferenceValueExpectingRecordPeriod {
+        column: String,
+        schema: String,
+        table: String,
+        record: String,
+    },
+    SchemaQualifiedReferenceValueExpectingColumn {
+        column: String,
+        schema: String,
+        table: String,
+        record: String,
+    },
 }
 
 #[derive(Debug)]
@@ -172,14 +202,138 @@ impl Parser {
 
                         CreatedAttribute
                     }
+                    Token::Identifier(i) | Token::QuotedIdentifier(i) => {
+                        IdentifierExpectingReferenceValue {
+                            column,
+                            identifier: i,
+                        }
+                    }
                     _ => return Err(ParseError::missing_column_value(line)),
                 },
-            }
+
+                IdentifierExpectingReferenceValue { column, identifier } => match token {
+                    // This is a table-qualified reference
+                    //Token::AtSign => {
+                    //},
+                    Token::Period => SchemaQualifiedReferenceValueExpectingTable {
+                        column,
+                        schema: identifier,
+                    },
+                    // Saying this identifier itself was unexpected (not obviously being intended
+                    // as a reference) seems clearer than saying the newline is the problem
+                    Token::Newline => return Err(ParseError::unexpected_token(line, Token::Identifier(identifier))),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+
+                SchemaQualifiedReferenceValueExpectingTable { column, schema } => match token {
+                    Token::Identifier(i) | Token::QuotedIdentifier(i) => {
+                        SchemaQualifiedReferenceValueExpectingAtSign {
+                            column,
+                            schema,
+                            table: i,
+                        }
+                    },
+                    Token::Newline => return Err(ParseError::incomplete_reference(
+                        line,
+                        format!("{}.", schema),
+                    )),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+
+                SchemaQualifiedReferenceValueExpectingAtSign { column, schema, table } => match token {
+                    Token::AtSign => {
+                        SchemaQualifiedReferenceValueExpectingRecord {
+                            column,
+                            schema,
+                            table,
+                        }
+                    },
+                    Token::Newline => return Err(ParseError::incomplete_reference(
+                        line,
+                        format!("{}.{}", schema, table),
+                    )),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+
+                SchemaQualifiedReferenceValueExpectingRecord { column, schema, table } => match token {
+                    Token::Identifier(i) | Token::QuotedIdentifier(i) => {
+                        SchemaQualifiedReferenceValueExpectingRecordPeriod {
+                            column,
+                            schema,
+                            table,
+                            record: i,
+                        }
+                    },
+                    Token::Newline => return Err(ParseError::incomplete_reference(
+                        line,
+                        format!("{}.{}@", schema, table),
+                    )),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+
+                SchemaQualifiedReferenceValueExpectingRecordPeriod { column, schema, table, record } => match token {
+                    Token::Period => {
+                        SchemaQualifiedReferenceValueExpectingColumn {
+                            column,
+                            schema,
+                            table,
+                            record,
+                        }
+                    },
+                    Token::Newline => return Err(ParseError::incomplete_reference(
+                        line,
+                        format!("{}.{}@{}", schema, table, record),
+                    )),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+
+                SchemaQualifiedReferenceValueExpectingColumn { column, schema, table, record } => match token {
+                    Token::Identifier(i) | Token::QuotedIdentifier(i) => {
+                        let value = Value::Reference(Box::new(ReferenceValue {
+                            schema,
+                            table,
+                            record,
+                            column: i,
+                        }));
+
+                        self.schemas
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_schema(line))? // Should never return error
+                            .tables
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_table(line))? // Should never return error
+                            .records
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_record(line))?
+                            .attributes
+                            .push(Attribute {
+                                name: column,
+                                value,
+                            });
+
+                        CreatedAttribute
+                    },
+                    Token::Newline => return Err(ParseError::incomplete_reference(
+                        line,
+                        format!("{}.{}@{}.", schema, table, record),
+                    )),
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                },
+            };
+
         }
 
-        if let ExpectingValue(_) = &self.state {
-            return Err(ParseError::missing_column_value(line));
+        /*
+        match &self.state {
+            ExpectingValue(_) => {
+                return Err(ParseError::missing_column_value(line));
+            },
+            IdentifierExpectingReferenceValue { identifier, .. } => {
+                return Err(ParseError::unexpected_token(line, Token::Identifier(identifier.clone())));
+            },
+            _ => (),
         }
+        */
 
         Ok(self)
     }
