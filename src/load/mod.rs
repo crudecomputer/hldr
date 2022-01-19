@@ -20,6 +20,7 @@ pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
 }
 
 pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Result<(), LoadError> {
+    /*
     for schema in validated.schemas() {
         for table in &schema.tables {
             for record in &table.records {
@@ -56,6 +57,7 @@ pub fn load(transaction: &mut Transaction, validated: &ValidatedSchemas) -> Resu
             }
         }
     }
+    */
 
     Ok(())
 }
