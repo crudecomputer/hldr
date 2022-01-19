@@ -6,7 +6,7 @@ pub use error::{ParseError, ParseErrorKind};
 use parser::Parser;
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ReferenceValue {
     pub schema: String,
     pub table: String,

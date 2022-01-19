@@ -1,6 +1,8 @@
 mod types;
 pub mod error;
 
+use std::collections::HashSet;
+
 use super::parse::*;
 pub use types::*;
 pub use error::{ValidateError, ValidateErrorKind};
@@ -8,6 +10,10 @@ pub use error::{ValidateError, ValidateErrorKind};
 
 pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError> {
     let mut vschemas = ValidatedSchemas::new();
+
+    // TODO: This is a hack to work around borrow issues when trying to
+    // check vschemas directly for reference values
+    let mut named_records: HashSet<String> = HashSet::new();
 
     for schema in schemas {
         let vschema = vschemas.schemas_mut().get_or_create_mut(&schema.name);
@@ -17,17 +23,24 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
 
             for record in table.records {
                 let vattrs = match &record.name {
-                    Some(name) => {
-                        if vtable.named_records().contains_key(name) {
+                    Some(record_name) => {
+                        if vtable.named_records().contains_key(record_name) {
                             return Err(ValidateError {
-                                kind: ValidateErrorKind::DuplicateRecordName(name.to_owned()),
+                                kind: ValidateErrorKind::DuplicateRecordName(record_name.to_owned()),
                                 schema: schema.name,
                                 table: table.name,
                             });
                         }
 
+                        named_records.insert(format!(
+                            "{}.{}@{}",
+                            schema.name,
+                            table.name,
+                            record_name,
+                        ));
+
                         // TODO: vtable shouldn't use `get_or_create_mut`
-                        vtable.named_records_mut().get_or_create_mut(name).attributes_mut()
+                        vtable.named_records_mut().get_or_create_mut(record_name).attributes_mut()
                     },
                     None => vtable.anonymous_records_mut().create().attributes_mut(),
                 };
@@ -44,10 +57,25 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
                         });
                     }
 
-                    //if let Value::Reference(r) = &attribute.value {
-                        //let record_present = validated.iter()
-                            //.find(|v| v.name == r.schema);
-                    //}
+                    if let Value::Reference(refval) = &attribute.value {
+                        let qualified_record_name = format!(
+                            "{}.{}@{}",
+                            refval.schema,
+                            refval.table,
+                            refval.record,
+                        );
+
+                        if !named_records.contains(&qualified_record_name) {
+                            return Err(ValidateError {
+                                kind: ValidateErrorKind::UnknownRecord {
+                                    reference: (**refval).clone(),
+                                    record: record.name,
+                                },
+                                schema: schema.name,
+                                table: table.name,
+                            });
+                        }
+                    }
 
                     vattrs.add(ValidatedAttribute::new(attribute));
                 }
@@ -387,9 +415,14 @@ mod validate_tests {
                 }],
             }]),
             Err(ValidateError {
-                kind: ValidateErrorKind::DuplicateColumn {
+                kind: ValidateErrorKind::UnknownRecord {
+                    reference: ReferenceValue {
+                        schema: "schema2".to_owned(),
+                        table: "table2".to_owned(),
+                        record: "record2".to_owned(),
+                        column: "column2".to_owned(),
+                    },
                     record: Some("my_record".to_owned()),
-                    column: "attr1".to_owned(),
                 },
                 schema: "schema1".to_owned(),
                 table: "table1".to_owned(),
@@ -399,9 +432,107 @@ mod validate_tests {
 
     #[test]
     fn reference_value_comes_before_record() {
+        assert_eq!(
+            validate(vec![Schema {
+                name: "schema1".to_owned(),
+                tables: vec![Table {
+                    name: "table1".to_owned(),
+                    records: vec![Record {
+                        name: None,
+                        attributes: vec![
+                            Attribute {
+                                name: "column1".to_owned(),
+                                value: Value::Reference(Box::new(ReferenceValue {
+                                    schema: "schema1".to_owned(),
+                                    table: "table2".to_owned(),
+                                    record: "record2".to_owned(),
+                                    column: "column2".to_owned(),
+                                })),
+                            },
+                        ],
+                    }],
+                }, Table {
+                    name: "table2".to_owned(),
+                    records: vec![Record {
+                        name: Some("record2".to_owned()),
+                        attributes: vec![/* -- column doesn't need to exist
+                            Attribute {
+                                name: "column2".to_owned(),
+                                value: Value::Reference(Box::new(ReferenceValue {
+                                    schema: "schema2".to_owned(),
+                                    table: "table2".to_owned(),
+                                    record: "record2".to_owned(),
+                                    column: "column2".to_owned(),
+                                })),
+                            },
+                        */],
+                    }],
+                }],
+            }]),
+            Err(ValidateError {
+                kind: ValidateErrorKind::UnknownRecord {
+                    reference: ReferenceValue {
+                        schema: "schema1".to_owned(),
+                        table: "table2".to_owned(),
+                        record: "record2".to_owned(),
+                        column: "column2".to_owned(),
+                    },
+                    record: None,
+                },
+                schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+            })
+        );
     }
 
     #[test]
     fn reference_value_good() {
+        let input = vec![Schema {
+            name: "schema1".to_owned(),
+            tables: vec![Table {
+                name: "table1".to_owned(),
+                records: vec![Record {
+                    name: Some("record1".to_owned()),
+                    // The referenced column doesn't need to be declared,
+                    // since it could be coming from database default, etc.
+                    attributes: Vec::new(),
+                }],
+            }, Table {
+                name: "table2".to_owned(),
+                records: vec![Record {
+                    name: None,
+                    attributes: vec![
+                        Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "schema1".to_owned(),
+                                table: "table1".to_owned(),
+                                record: "record1".to_owned(),
+                                column: "blimey".to_owned(),
+                            })),
+                        },
+                    ],
+                }],
+            }],
+        }];
+
+        let mut expected = ValidatedSchemas::new();
+        let schema1 = expected.schemas_mut().get_or_create_mut("schema1");
+        let table1 = schema1.tables_mut().get_or_create_mut("table1");
+        table1.named_records_mut().get_or_create_mut("record1");
+
+        let table2 = schema1.tables_mut().get_or_create_mut("table2");
+        let attrs = table2.anonymous_records_mut().create().attributes_mut();
+        attrs.add(ValidatedAttribute::new(Attribute {
+            name: "column1".to_owned(),
+            value: Value::Reference(Box::new(ReferenceValue {
+                schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+                record: "record1".to_owned(),
+                column: "blimey".to_owned(),
+            })),
+        }));
+
+        assert_eq!(validate(input), Ok(expected));
     }
 }
