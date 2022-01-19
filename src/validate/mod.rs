@@ -289,7 +289,6 @@ mod validate_tests {
         assert_eq!(validate(input), Ok(expected));
     }
 
-    /*
     #[test]
     fn duplicate_attribute_names_anonymous() {
         assert_eq!(
@@ -405,5 +404,4 @@ mod validate_tests {
     #[test]
     fn reference_value_good() {
     }
-     */
 }
