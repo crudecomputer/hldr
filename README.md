@@ -5,6 +5,8 @@
 > See [Journey](https://github.com/kevlarr/jrny)
 > for a complementary, straightforward SQL-based database migration tool.
 
+**Important:** Placeholder is very, very alpha and feature-incomplete.
+
 Placeholder strives to make generating _simple_ data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
 with dedicated fixtures and factory libraries.
