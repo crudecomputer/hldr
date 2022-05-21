@@ -1,11 +1,17 @@
 use std::{error::Error, fmt};
 
+use crate::parse::ReferenceValue;
+
 #[derive(Debug, PartialEq)]
 pub enum ValidateErrorKind {
     DuplicateRecordName(String),
     DuplicateColumn {
         record: Option<String>,
         column: String,
+    },
+    UnknownRecord {
+        record: Option<String>,
+        reference: ReferenceValue,
     },
 }
 
@@ -34,8 +40,21 @@ impl fmt::Display for ValidateError {
             ),
             DuplicateColumn { record, column } => write!(
                 f,
-                "Duplicate column '{}' for record '{}' in '{}.{}'",
+                "Duplicate column '{}' for {} in '{}.{}'",
                 column,
+                record
+                    .as_ref()
+                    .map(|name| format!("record '{}'", name))
+                    .unwrap_or_else(|| "anonymous record".to_owned()),
+                self.schema,
+                self.table,
+            ),
+            UnknownRecord { record, reference } => write!(
+                f,
+                "Cannot find record {}.{}@{} referenced by {} in '{}.{}'",
+                reference.schema,
+                reference.table,
+                reference.record,
                 record
                     .as_ref()
                     .map(|name| format!("record '{}'", name))

@@ -4,6 +4,7 @@ use super::Token;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseErrorKind {
+    IncompleteReference(String),
     InconsistentIndent { unit: String, received: String },
     MissingColumnValue,
     MissingRecord,
@@ -35,6 +36,13 @@ impl ParseError {
     pub fn inconsistent_indent(line: usize, unit: String, received: String) -> Self {
         Self {
             kind: ParseErrorKind::InconsistentIndent { unit, received },
+            line,
+        }
+    }
+
+    pub fn incomplete_reference(line: usize, reference: String) -> Self {
+        Self {
+            kind: ParseErrorKind::IncompleteReference(reference),
             line,
         }
     }
@@ -101,13 +109,16 @@ impl fmt::Display for ParseError {
 
         match &self.kind {
             EmptyIndent => write!(f, "Empty indent on line {}", self.line,),
+            IncompleteReference(reference) => {
+                write!(f, "Incomplete reference '{}' on line {}", reference, self.line)
+            }
             InconsistentIndent { unit, received } => write!(
                 f,
                 "Expected indentation unit of '{}', received '{}' on line {}",
                 unit, received, self.line,
             ),
             InvalidIndent(indent) => {
-                write!(f, "Invalid indentation '{}' on line {}", indent, self.line,)
+                write!(f, "Invalid indentation '{}' on line {}", indent, self.line)
             }
             MissingColumnValue => write!(f, "Missing column value on line {}", self.line,),
             MissingRecord => write!(f, "No record present for column on line {}", self.line,),
@@ -121,11 +132,13 @@ impl fmt::Display for ParseError {
             UnexpectedToken(t) => {
                 write!(f, "Unexpected ")?;
                 match t {
+                    Token::AtSign => write!(f, "'@'")?,
                     Token::Boolean(b) => write!(f, "`{}`", b)?,
                     Token::Identifier(i) => write!(f, "identifier `{}`", i)?,
                     Token::Indent(_) => write!(f, "indent")?,
                     Token::Newline => write!(f, "newline")?,
                     Token::Number(_) => write!(f, "number")?,
+                    Token::Period => write!(f, "'.'")?,
                     Token::QuotedIdentifier(i) => write!(f, "quoted identifier `\"{}\"`", i)?,
                     Token::Text(_) => write!(f, "string")?,
                     Token::Underscore => write!(f, "underscore")?,

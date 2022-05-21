@@ -73,7 +73,8 @@ with an indentation style of your choosing. Tabs or 3 spaces?
 Do whatever you want, as long as it's consistent.
 
 Records themselves can either be given a name, or they can be anonymous.
-Named records are not useful yet but they [will be soon](https://github.com/kevlarr/hldr/issues/12).
+Naming records allows their columns (even those populated by the database)
+to be referenced in other records.
 
 There are literal values for booleans, numbers, and text strings.
 
@@ -150,6 +151,24 @@ that have whitespace, punctuation, etc.
   "table.with -- dashes"
     my_record
       "column with spaces" 42
+```
+
+Records can also access values from other, named records using a fully-qualified
+format like `schema.table@record_name.column`.
+Columns do not need to be specified in the file to be referenced,
+such as columns with database defaults like primary keys.
+
+```
+public
+  person
+    fry
+      name 'Philip J. Fry'
+
+  pet
+    seymour
+      name 'Seymour Asses'
+      species 'Dog'
+      person_id public.person@fry.id
 ```
 
 ## Planned features

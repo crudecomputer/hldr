@@ -5,11 +5,21 @@ use super::lex::Token;
 pub use error::{ParseError, ParseErrorKind};
 use parser::Parser;
 
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReferenceValue {
+    pub schema: String,
+    pub table: String,
+    pub record: String,
+    pub column: String,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Boolean(bool),
     Number(String),
     Text(String),
+    Reference(Box<ReferenceValue>)
 }
 
 #[derive(Debug, PartialEq)]
@@ -70,6 +80,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Vec<Schema>, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::{Token as T, *};
+    use super::super::lex::lex;
 
     #[test]
     fn empty() {
@@ -254,15 +265,11 @@ mod tests {
 
     #[test]
     fn named_record() {
-        let tokens = vec![
-            T::Identifier("public".to_owned()),
-            T::Newline,
-            T::Indent("  ".to_owned()),
-            T::Identifier("person".to_owned()),
-            T::Newline,
-            T::Indent("    ".to_owned()),
-            T::Identifier("kevin".to_owned()),
-        ];
+        let tokens = lex(
+"public
+  person
+    kevin"
+        ).unwrap();
 
         assert_eq!(
             parse(tokens),
@@ -281,27 +288,15 @@ mod tests {
 
     #[test]
     fn named_records() {
-        let tokens = vec![
-            T::Identifier("public".to_owned()),
-            T::Newline,
-            T::Indent("  ".to_owned()),
-            T::Identifier("person".to_owned()),
-            T::Newline,
-            T::Indent("    ".to_owned()),
-            T::Identifier("stacey".to_owned()),
-            T::Newline,
-            T::Indent("    ".to_owned()),
-            T::Identifier("kevin".to_owned()),
-            T::Newline,
-            T::Indent("  ".to_owned()),
-            T::Identifier("pet".to_owned()),
-            T::Newline,
-            T::Indent("    ".to_owned()),
-            T::Identifier("eiyre".to_owned()),
-            T::Newline,
-            T::Indent("    ".to_owned()),
-            T::Identifier("cupid".to_owned()),
-        ];
+        let tokens = lex(
+"public
+  person
+    stacey
+    kevin
+  pet
+    eiyre
+    cupid"
+        ).unwrap();
 
         assert_eq!(
             parse(tokens),
@@ -509,7 +504,105 @@ mod tests {
     }
 
     #[test]
-    fn attribute() {
+    fn boolean_attribute() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("likes_coffee".to_owned()),
+            T::Boolean(true),
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "likes_coffee".to_owned(),
+                            value: Value::Boolean(true),
+                        }]
+                    }]
+                }]
+            },])
+        );
+    }
+
+    #[test]
+    fn number_attribute() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("pets".to_owned()),
+            T::Number("2".to_owned()),
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "pets".to_owned(),
+                            value: Value::Number("2".to_owned()),
+                        }]
+                    }]
+                }]
+            }])
+        );
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::Identifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::Identifier("pets".to_owned()),
+            T::Number("2.5".to_owned()),
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "pets".to_owned(),
+                            value: Value::Number("2.5".to_owned()),
+                        }]
+                    }]
+                }]
+            }])
+        );
+    }
+
+    #[test]
+    fn text_attribute() {
         let tokens = vec![
             T::Identifier("public".to_owned()),
             T::Newline,
@@ -535,6 +628,81 @@ mod tests {
                         attributes: vec![Attribute {
                             name: "name".to_owned(),
                             value: Value::Text("Kevin".to_owned()),
+                        }]
+                    }]
+                }]
+            },])
+        );
+    }
+
+    #[test]
+    fn fully_qualified_reference_attribute() {
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema.table@record.column2"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "schema".to_owned(),
+                                table: "table".to_owned(),
+                                record: "record".to_owned(),
+                                column: "column2".to_owned(),
+                            })),
+                        }]
+                    }]
+                }]
+            },])
+        );
+
+        let tokens = vec![
+            T::QuotedIdentifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::QuotedIdentifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::QuotedIdentifier("column1".to_owned()),
+            T::QuotedIdentifier("schema".to_owned()),
+            T::Period,
+            T::QuotedIdentifier("table".to_owned()),
+            T::AtSign,
+            T::QuotedIdentifier("record".to_owned()),
+            T::Period,
+            T::QuotedIdentifier("column2".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "schema".to_owned(),
+                                table: "table".to_owned(),
+                                record: "record".to_owned(),
+                                column: "column2".to_owned(),
+                            })),
                         }]
                     }]
                 }]
@@ -652,6 +820,7 @@ mod tests {
             T::Newline,
             T::Indent("\t\t\t".to_owned()),
             T::Boolean(false),
+            T::Newline,
         ];
 
         assert_eq!(
@@ -673,6 +842,7 @@ mod tests {
             T::Newline,
             T::Indent("\t\t\t".to_owned()),
             T::Identifier("name".to_owned()),
+            T::Newline,
         ];
 
         assert_eq!(parse(tokens), Err(ParseError::missing_column_value(4)));
@@ -720,6 +890,84 @@ mod tests {
                 4,
                 T::Identifier("name".to_owned())
             ))
+        );
+    }
+
+    #[test]
+    fn attribute_with_incomplete_fully_qualified_reference() {
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::unexpected_token(
+                4,
+                T::Identifier("schema1".to_owned())
+            ))
+        );
+
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1."
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::incomplete_reference(4, "schema1.".to_owned()))
+        );
+
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1.table1"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::incomplete_reference(4, "schema1.table1".to_owned()))
+        );
+
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1.table1@"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::incomplete_reference(4, "schema1.table1@".to_owned()))
+        );
+
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1.table1@record1"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::incomplete_reference(4, "schema1.table1@record1".to_owned()))
+        );
+
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 schema1.table1@record1."
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError::incomplete_reference(4, "schema1.table1@record1.".to_owned()))
         );
     }
 
