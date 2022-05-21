@@ -171,6 +171,22 @@ public
       person_id public.person@fry.id
 ```
 
+Additionally, if the referenced table is in the same schema,
+the schema name can be omitted.
+
+```
+public
+  person
+    fry
+      name 'Philip J. Fry'
+
+  pet
+    seymour
+      name 'Seymour Asses'
+      species 'Dog'
+      person_id person@fry.id
+```
+
 ## Planned features
 
 See [enhancements](https://github.com/kevlarr/hldr/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement) for planned features.
