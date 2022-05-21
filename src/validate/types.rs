@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parse::Attribute;
+use crate::parse::{Attribute, Value};
 
 pub trait Item {
     fn name(&self) -> &str;
@@ -36,6 +36,11 @@ impl<T: Item> OrderedHashMap<T> {
         self.items.push(item);
         self.map.insert(item_name, self.items.len() - 1);
     }
+
+    // TODO: Should this be IntoIterator instead?
+    pub fn items(&self) -> &[T] {
+        &self.items
+    }
 }
 
 impl<T: Item + From<String>> OrderedHashMap<T> {
@@ -63,6 +68,10 @@ impl ValidatedAttribute {
     pub fn new(attr: Attribute) -> Self {
         Self(attr)
     }
+
+    pub fn value(&self) -> &Value {
+        &self.0.value
+    }
 }
 
 impl Item for ValidatedAttribute {
@@ -71,15 +80,21 @@ impl Item for ValidatedAttribute {
     }
 }
 
+pub type ValidatedAttributes = OrderedHashMap<ValidatedAttribute>;
+
 /// A named record whose attributes have all been validated
 #[derive(Debug, PartialEq)]
 pub struct ValidatedNamedRecord {
     name: String,
-    attributes: OrderedHashMap<ValidatedAttribute>,
+    attributes: ValidatedAttributes,
 }
 
 impl ValidatedNamedRecord {
-    pub(super) fn attributes_mut(&mut self) -> &mut OrderedHashMap<ValidatedAttribute> {
+    pub fn attributes(&self) -> &ValidatedAttributes {
+        &self.attributes
+    }
+
+    pub(super) fn attributes_mut(&mut self) -> &mut ValidatedAttributes {
         &mut self.attributes
     }
 }
@@ -99,10 +114,12 @@ impl Item for ValidatedNamedRecord {
     }
 }
 
+pub type ValidatedNamedRecords = OrderedHashMap<ValidatedNamedRecord>;
+
 /// An anonymous record whose attributes have all been validated
 #[derive(Debug, PartialEq)]
 pub struct ValidatedAnonymousRecord {
-    attributes: OrderedHashMap<ValidatedAttribute>,
+    attributes: ValidatedAttributes,
 }
 
 impl ValidatedAnonymousRecord {
@@ -110,6 +127,10 @@ impl ValidatedAnonymousRecord {
         Self {
             attributes: OrderedHashMap::new()
         }
+    }
+
+    pub fn attributes(&self) -> &ValidatedAttributes {
+        &self.attributes
     }
 
     pub(super) fn attributes_mut(&mut self) -> &mut OrderedHashMap<ValidatedAttribute> {
@@ -126,13 +147,17 @@ impl ValidatedAnonymousRecords {
         self.0.push(ValidatedAnonymousRecord::new());
         self.0.last_mut().unwrap()
     }
+
+    pub fn items(&self) -> &[ValidatedAnonymousRecord] {
+        &self.0
+    }
 }
 
 /// A table whose named and anonymous records have all been validated
 #[derive(Debug, PartialEq)]
 pub struct ValidatedTable {
     name: String,
-    named_records: OrderedHashMap<ValidatedNamedRecord>,
+    named_records: ValidatedNamedRecords,
     anonymous_records: ValidatedAnonymousRecords,
 }
 
@@ -145,11 +170,11 @@ impl ValidatedTable {
         &mut self.anonymous_records
     }
 
-    pub fn named_records(&self) -> &OrderedHashMap<ValidatedNamedRecord> {
+    pub fn named_records(&self) -> &ValidatedNamedRecords {
         &self.named_records
     }
 
-    pub(super) fn named_records_mut(&mut self) -> &mut OrderedHashMap<ValidatedNamedRecord> {
+    pub(super) fn named_records_mut(&mut self) -> &mut ValidatedNamedRecords {
         &mut self.named_records
     }
 }
@@ -170,15 +195,21 @@ impl Item for ValidatedTable {
     }
 }
 
+pub type ValidatedTables = OrderedHashMap<ValidatedTable>;
+
 /// A schema whose tables and records have all been validated
 #[derive(Debug, PartialEq)]
 pub struct ValidatedSchema {
     name: String,
-    tables: OrderedHashMap<ValidatedTable>,
+    tables: ValidatedTables,
 }
 
 impl ValidatedSchema {
-    pub(super) fn tables_mut(&mut self) -> &mut OrderedHashMap<ValidatedTable> {
+    pub fn tables(&self) -> &ValidatedTables {
+        &self.tables
+    }
+
+    pub(super) fn tables_mut(&mut self) -> &mut ValidatedTables {
         &mut self.tables
     }
 }
@@ -205,6 +236,10 @@ pub struct ValidatedSchemas(OrderedHashMap<ValidatedSchema>);
 impl ValidatedSchemas {
     pub fn new() -> Self {
         Self(OrderedHashMap::new())
+    }
+
+    pub fn schemas(&self) -> &OrderedHashMap<ValidatedSchema> {
+        &self.0
     }
 
     pub(super) fn schemas_mut(&mut self) -> &mut OrderedHashMap<ValidatedSchema> {
