@@ -489,6 +489,74 @@ mod tests {
     }
 
     #[test]
+    fn table_qualified_reference() {
+        assert_eq!(
+            lex("table@record.column"),
+            Ok(vec![
+              T::Identifier("table".to_owned()),
+              T::AtSign,
+              T::Identifier("record".to_owned()),
+              T::Period,
+              T::Identifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 table2@record2.column2"),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::Identifier("table2".to_owned()),
+              T::AtSign,
+              T::Identifier("record2".to_owned()),
+              T::Period,
+              T::Identifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex(r#""some table @ "@"some record"."column""#),
+            Ok(vec![
+              T::QuotedIdentifier("some table @ ".to_owned()),
+              T::AtSign,
+              T::QuotedIdentifier("some record".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 \"table2\"@\"record2\".\"column2\""),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::QuotedIdentifier("table2".to_owned()),
+              T::AtSign,
+              T::QuotedIdentifier("record2".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
+    }
+
+    #[test]
     fn good_file() {
         let file = r#"public
   -- This is a newline comment

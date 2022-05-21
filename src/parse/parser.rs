@@ -212,9 +212,19 @@ impl Parser {
                 },
 
                 IdentifierExpectingReferenceValue { column, identifier } => match token {
-                    // This is a table-qualified reference
-                    //Token::AtSign => {
-                    //},
+                    Token::AtSign => {
+                        let schema = self.schemas
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_schema(line))? // Should never return error
+                            .name.clone();
+
+                        SchemaQualifiedReferenceValueExpectingRecord {
+                            column,
+                            schema,
+                            table: identifier,
+
+                        }
+                    },
                     Token::Period => SchemaQualifiedReferenceValueExpectingTable {
                         column,
                         schema: identifier,
