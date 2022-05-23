@@ -20,6 +20,7 @@ pub enum State {
     Decimal,
     DecimalExpectingNumber,
     ExpectingComment,
+    // TODO: "expecting an identifier" seems out of scope for a lexer
     ExpectingIdentifier,
     Indent,
     Identifier,
@@ -143,6 +144,10 @@ impl Tokenizer {
                                 '\'' => State::TextOpen,
                                 '-' => State::ExpectingComment,
                                 '.' => State::DecimalExpectingNumber,
+                                '@' => {
+                                    self.tokens.push(Token::AtSign);
+                                    State::Whitespace
+                                },
                                 '0'..='9' => {
                                     self.stack.push(c);
                                     State::Integer
@@ -182,6 +187,10 @@ impl Tokenizer {
                             self.stack.push(c);
                             State::Indent
                         }
+                        '@' => {
+                            self.tokens.push(Token::AtSign);
+                            State::Whitespace
+                        },
                         '0'..='9' => {
                             self.stack.push(c);
                             State::Integer
@@ -249,11 +258,16 @@ impl Tokenizer {
                         _ => return unexpected(),
                     },
 
+                    // TODO: This has become something of a generic 'starter' state
                     State::Whitespace => match c {
                         ' ' | '\t' => State::Whitespace,
                         '"' => State::QuotedIdentifierOpen,
                         '\'' => State::TextOpen,
                         '-' => State::ExpectingComment,
+                        '@' => {
+                            self.tokens.push(Token::AtSign);
+                            State::Whitespace
+                        }
                         '0'..='9' => {
                             self.stack.push(c);
                             State::Integer

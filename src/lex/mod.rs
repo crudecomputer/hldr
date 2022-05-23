@@ -270,17 +270,18 @@ mod tests {
     fn at_sign_alone() {
         assert_eq!(
             lex("@"),
-            Err(E {
-                position: P { line: 1, column: 1 },
-                kind: K::UnexpectedCharacter('@'),
-            })
+            Ok(vec![
+                T::AtSign,
+                T::Newline,
+            ])
         );
         assert_eq!(
             lex("\t\t@"),
-            Err(E {
-                position: P { line: 1, column: 3 },
-                kind: K::UnexpectedCharacter('@'),
-            })
+            Ok(vec![
+                indent("\t\t"),
+                T::AtSign,
+                T::Newline,
+            ])
         );
     }
 
@@ -288,10 +289,12 @@ mod tests {
     fn at_sign_identifiers_whitespace_before() {
         assert_eq!(
             lex("some @identifiers"),
-            Err(E {
-                position: P { line: 1, column: 6 },
-                kind: K::UnexpectedCharacter('@'),
-            })
+            Ok(vec![
+                T::Identifier("some".to_owned()),
+                T::AtSign,
+                T::Identifier("identifiers".to_owned()),
+                T::Newline,
+            ])
         );
     }
 
@@ -549,6 +552,70 @@ mod tests {
               T::QuotedIdentifier("table2".to_owned()),
               T::AtSign,
               T::QuotedIdentifier("record2".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
+    }
+
+    #[test]
+    fn unqualified_reference() {
+        assert_eq!(
+            lex("@record.column"),
+            Ok(vec![
+              T::AtSign,
+              T::Identifier("record".to_owned()),
+              T::Period,
+              T::Identifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 @record2.column2"),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::AtSign,
+              T::Identifier("record2".to_owned()),
+              T::Period,
+              T::Identifier("column2".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex(r#"@some_record."column""#),
+            Ok(vec![
+              T::AtSign,
+              T::Identifier("some_record".to_owned()),
+              T::Period,
+              T::QuotedIdentifier("column".to_owned()),
+              T::Newline,
+            ])
+        );
+        assert_eq!(
+            lex("schema1\n  table1\n    record1\n      column1 @record2.\"column2\""),
+            Ok(vec![
+              T::Identifier("schema1".to_owned()),
+              T::Newline,
+              indent("  "),
+              T::Identifier("table1".to_owned()),
+              T::Newline,
+              indent("    "),
+              T::Identifier("record1".to_owned()),
+              T::Newline,
+              indent("      "),
+              T::Identifier("column1".to_owned()),
+              T::AtSign,
+              T::Identifier("record2".to_owned()),
               T::Period,
               T::QuotedIdentifier("column2".to_owned()),
               T::Newline,

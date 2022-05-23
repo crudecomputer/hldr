@@ -208,6 +208,22 @@ impl Parser {
                             identifier: i,
                         }
                     }
+                    Token::AtSign => {
+                        let schema = self.schemas
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_schema(line))?; // Should never return error
+
+                        let table = schema.tables
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_table(line))?; // Should never return error
+
+                        SchemaQualifiedReferenceValueExpectingRecord {
+                            column,
+                            schema: schema.name.clone(),
+                            table: table.name.clone(),
+
+                        }
+                    }
                     _ => return Err(ParseError::missing_column_value(line)),
                 },
 
