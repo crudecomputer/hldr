@@ -187,6 +187,19 @@ public
       person_id person@fry.id
 ```
 
+Likewise, if the referenced record is in the same table,
+the table name can be omitted as wel.
+
+```
+public
+  bumblenum
+    humble
+      favorite_saying 'Yum yum!'
+
+    stumble
+      favorite_saying @humble.favorite_saying
+```
+
 ## Planned features
 
 See [enhancements](https://github.com/kevlarr/hldr/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement) for planned features.

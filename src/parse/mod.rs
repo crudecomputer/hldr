@@ -784,6 +784,78 @@ mod tests {
     }
 
     #[test]
+    fn unqualified_reference_attribute() {
+        let tokens = lex(
+"public
+  person
+    kevin
+      column1 @record.column2"
+        ).unwrap();
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "public".to_owned(),
+                                table: "person".to_owned(),
+                                record: "record".to_owned(),
+                                column: "column2".to_owned(),
+                            })),
+                        }]
+                    }]
+                }]
+            },])
+        );
+
+        let tokens = vec![
+            T::QuotedIdentifier("public".to_owned()),
+            T::Newline,
+            T::Indent("\t".to_owned()),
+            T::QuotedIdentifier("person".to_owned()),
+            T::Newline,
+            T::Indent("\t\t".to_owned()),
+            T::Identifier("kevin".to_owned()),
+            T::Newline,
+            T::Indent("\t\t\t".to_owned()),
+            T::QuotedIdentifier("column1".to_owned()),
+            T::AtSign,
+            T::QuotedIdentifier("record".to_owned()),
+            T::Period,
+            T::QuotedIdentifier("column2".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![Table {
+                    name: "person".to_owned(),
+                    records: vec![Record {
+                        name: Some("kevin".to_owned()),
+                        attributes: vec![Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "public".to_owned(),
+                                table: "person".to_owned(),
+                                record: "record".to_owned(),
+                                column: "column2".to_owned(),
+                            })),
+                        }]
+                    }]
+                }]
+            },])
+        );
+    }
+
+    #[test]
     fn lotsa_attributes() {
         let tokens = vec![
             T::Identifier("public".to_owned()),
