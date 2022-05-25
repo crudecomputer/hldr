@@ -188,7 +188,7 @@ public
 ```
 
 Likewise, if the referenced record is in the same table,
-the table name can be omitted as wel.
+the table name can be omitted as well.
 
 ```
 public
@@ -198,6 +198,34 @@ public
 
     stumble
       favorite_saying @humble.favorite_saying
+```
+
+Tables can also have aliases to have shorten qualified references.
+
+```
+public
+  person as p
+    p1
+      name 'Person 1'
+
+    p2
+      name 'Person 2'
+
+    p3
+      name 'Person 3'
+
+  pet
+    _
+      -- Aliases can be schema-qualified
+      person_id public.p@fry.id
+
+    _
+      -- Or only be alias-qualified
+      person_id p@fry.id
+
+    _
+      -- And the original table name can still be used
+      person_id person@fry.id
 ```
 
 ## Planned features
