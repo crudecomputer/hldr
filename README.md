@@ -200,7 +200,7 @@ public
       favorite_saying @humble.favorite_saying
 ```
 
-Tables can also have aliases to have shorten qualified references.
+Tables can also have aliases to help shorten qualified references.
 
 ```
 public
