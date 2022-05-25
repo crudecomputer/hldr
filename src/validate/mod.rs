@@ -1,7 +1,7 @@
 mod types;
 pub mod error;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::parse::*;
 pub use types::*;
@@ -14,11 +14,16 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
     // TODO: This is a hack to work around borrow issues when trying to
     // check vschemas directly for reference values
     let mut named_records: HashSet<String> = HashSet::new();
+    let mut aliases: HashMap<String, String> = HashMap::new();
 
     for schema in schemas {
         let vschema = vschemas.schemas_mut().get_or_create_mut(&schema.name);
 
         for table in schema.tables {
+            if let Some(alias) = &table.alias {
+                aliases.insert(alias.clone(), table.name.clone());
+            }
+
             let vtable = vschema.tables_mut().get_or_create_mut(&table.name);
 
             for record in table.records {
@@ -58,10 +63,12 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
                     }
 
                     if let Value::Reference(refval) = &attribute.value {
+                        let aliased_tablename = aliases.get(&refval.table);
+
                         let qualified_record_name = format!(
                             "{}.{}@{}",
                             refval.schema,
-                            refval.table,
+                            aliased_tablename.unwrap_or(&refval.table),
                             refval.record,
                         );
 
@@ -74,6 +81,19 @@ pub fn validate(schemas: Vec<Schema>) -> Result<ValidatedSchemas, ValidateError>
                                 schema: schema.name,
                                 table: table.name,
                             });
+                        }
+
+                        if let Some(alias) = aliased_tablename {
+                            let mut value = refval.clone();
+                            value.table = alias.clone();
+
+                            let attr = Attribute {
+                                name: attribute.name.clone(),
+                                value: Value::Reference(value),
+                            };
+
+                            vattrs.add(ValidatedAttribute::new(attr));
+                            continue;
                         }
                     }
 
@@ -183,6 +203,7 @@ mod validate_tests {
                     Table {
                         name: "table1".to_owned(),
                         records: vec![Record::new(Some("record2".to_owned()))],
+                        ..Default::default()
                     },
                     Table {
                         name: "table2".to_owned(),
@@ -191,6 +212,7 @@ mod validate_tests {
                             Record::new(Some("record1".to_owned())), // Same name as record from public.table1
                             Record::new(None),
                         ],
+                        ..Default::default()
                     },
                 ],
             },
@@ -203,6 +225,7 @@ mod validate_tests {
                 tables: vec![Table {
                     name: "table1".to_owned(),
                     records: vec![Record::new(Some("record1".to_owned()))],
+                    ..Default::default()
                 }],
             },
         ];
@@ -237,6 +260,7 @@ mod validate_tests {
                         Record::new(Some("record1".to_owned())),
                         Record::new(Some("record1".to_owned())),
                     ],
+                    ..Default::default()
                 }],
             }]),
             Err(ValidateError {
@@ -267,6 +291,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }],
             },
             Schema {
@@ -286,6 +311,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }],
             },
         ];
@@ -341,6 +367,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }],
             }]),
             Err(ValidateError {
@@ -378,6 +405,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }],
             }]),
             Err(ValidateError {
@@ -412,6 +440,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }],
             }]),
             Err(ValidateError {
@@ -451,6 +480,7 @@ mod validate_tests {
                             },
                         ],
                     }],
+                    ..Default::default()
                 }, Table {
                     name: "table2".to_owned(),
                     records: vec![Record {
@@ -467,6 +497,7 @@ mod validate_tests {
                             },
                         */],
                     }],
+                    ..Default::default()
                 }],
             }]),
             Err(ValidateError {
@@ -497,6 +528,7 @@ mod validate_tests {
                     // since it could be coming from database default, etc.
                     attributes: Vec::new(),
                 }],
+                ..Default::default()
             }, Table {
                 name: "table2".to_owned(),
                 records: vec![Record {
@@ -513,6 +545,7 @@ mod validate_tests {
                         },
                     ],
                 }],
+                ..Default::default()
             }],
         }];
 
@@ -527,6 +560,57 @@ mod validate_tests {
             name: "column1".to_owned(),
             value: Value::Reference(Box::new(ReferenceValue {
                 schema: "schema1".to_owned(),
+                table: "table1".to_owned(),
+                record: "record1".to_owned(),
+                column: "blimey".to_owned(),
+            })),
+        }));
+
+        assert_eq!(validate(input), Ok(expected));
+    }
+
+    #[test]
+    fn reference_value_aliased() {
+        let input = vec![Schema {
+            name: "public".to_owned(),
+            tables: vec![Table {
+                alias: Some("t1".to_owned()),
+                name: "table1".to_owned(),
+                records: vec![Record {
+                    name: Some("record1".to_owned()),
+                    ..Default::default()
+                }],
+            }, Table {
+                name: "table2".to_owned(),
+                records: vec![Record {
+                    name: None,
+                    attributes: vec![
+                        Attribute {
+                            name: "column1".to_owned(),
+                            value: Value::Reference(Box::new(ReferenceValue {
+                                schema: "public".to_owned(),
+                                table: "t1".to_owned(),
+                                record: "record1".to_owned(),
+                                column: "blimey".to_owned(),
+                            })),
+                        },
+                    ],
+                }],
+                ..Default::default()
+            }],
+        }];
+
+        let mut expected = ValidatedSchemas::new();
+        let schema1 = expected.schemas_mut().get_or_create_mut("public");
+        let table1 = schema1.tables_mut().get_or_create_mut("table1");
+        table1.named_records_mut().get_or_create_mut("record1");
+
+        let table2 = schema1.tables_mut().get_or_create_mut("table2");
+        let attrs = table2.anonymous_records_mut().create().attributes_mut();
+        attrs.add(ValidatedAttribute::new(Attribute {
+            name: "column1".to_owned(),
+            value: Value::Reference(Box::new(ReferenceValue {
+                schema: "public".to_owned(),
                 table: "table1".to_owned(),
                 record: "record1".to_owned(),
                 column: "blimey".to_owned(),

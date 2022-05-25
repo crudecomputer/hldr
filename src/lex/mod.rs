@@ -2,7 +2,7 @@ pub mod error;
 mod tokenizer;
 
 pub use error::{LexError, LexErrorKind};
-pub use tokenizer::Token;
+pub use tokenizer::{Keyword, Token};
 
 pub fn lex(text: &str) -> Result<Vec<Token>, LexError> {
     Ok(tokenizer::Tokenizer::new().tokenize(text)?.tokens)
@@ -12,7 +12,10 @@ pub fn lex(text: &str) -> Result<Vec<Token>, LexError> {
 mod tests {
     use super::{
         error::{LexErrorKind as K, Position as P},
-        lex, LexError as E, Token as T,
+        lex,
+        LexError as E,
+        Keyword as KW,
+        Token as T,
     };
 
     fn indent(sp: &str) -> T {
@@ -22,6 +25,19 @@ mod tests {
     #[test]
     fn empty() {
         assert_eq!(lex(""), Ok(vec![]));
+    }
+
+    #[test]
+    fn identifier_and_keywords() {
+        assert_eq!(
+            lex("something as \"wat\""),
+            Ok(vec![
+                T::Identifier("something".to_owned()),
+                T::Keyword(KW::As),
+                T::QuotedIdentifier("wat".to_owned()),
+                T::Newline,
+            ])
+        )
     }
 
     #[test]

@@ -197,6 +197,7 @@ mod load_tests {
                         ],
                     },
                 ],
+                ..Default::default()
             }, Table {
                 name: "table2".to_owned(),
                 records: vec![
@@ -229,6 +230,7 @@ mod load_tests {
                         ],
                     },
                 ],
+                ..Default::default()
             }],
         }])
         .unwrap();

@@ -136,6 +136,7 @@ impl fmt::Display for ParseError {
                     Token::Boolean(b) => write!(f, "`{}`", b)?,
                     Token::Identifier(i) => write!(f, "identifier `{}`", i)?,
                     Token::Indent(_) => write!(f, "indent")?,
+                    Token::Keyword(k) => write!(f, "keyword `{}`", k)?,
                     Token::Newline => write!(f, "newline")?,
                     Token::Number(_) => write!(f, "number")?,
                     Token::Period => write!(f, "'.'")?,

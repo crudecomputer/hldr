@@ -1,9 +1,11 @@
-use super::{error::ParseError, Attribute, Record, Schema, Table, Token, Value, ReferenceValue};
+use super::{error::ParseError, Attribute, Record, Schema, Table, Keyword, Token, Value, ReferenceValue};
 
 #[derive(Debug, PartialEq)]
 pub enum State {
     LineStart,
     CreatedSchema,
+    CreatingTable(Table),
+    CreatingTableExpectingAlias(Table),
     CreatedTable,
     CreatedRecord,
     CreatedAttribute,
@@ -110,6 +112,35 @@ impl Parser {
                     }
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
+                CreatingTable(table) => match token {
+                    Token::Newline => {
+                        self.schemas
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_schema(line))?
+                            .tables
+                            .push(table);
+
+                        line += 1;
+                        LineStart
+                    }
+                    Token::Keyword(Keyword::As) => {
+                        CreatingTableExpectingAlias(table)
+                    }
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                }
+                CreatingTableExpectingAlias(mut table) => match token {
+                    Token::Identifier(ident) => {
+                        table.alias = Some(ident);
+                        self.schemas
+                            .last_mut()
+                            .ok_or_else(|| ParseError::missing_schema(line))?
+                            .tables
+                            .push(table);
+
+                        CreatedTable
+                    }
+                    _ => return Err(ParseError::unexpected_token(line, token)),
+                }
                 CreatedSchema | CreatedTable | CreatedRecord | CreatedAttribute => match token {
                     Token::Newline => {
                         line += 1;
@@ -123,13 +154,7 @@ impl Parser {
                         LineStart
                     }
                     Token::Identifier(ident) | Token::QuotedIdentifier(ident) => {
-                        self.schemas
-                            .last_mut()
-                            .ok_or_else(|| ParseError::missing_schema(line))?
-                            .tables
-                            .push(Table::new(ident));
-
-                        CreatedTable
+                        CreatingTable(Table::new(ident))
                     }
                     _ => return Err(ParseError::unexpected_token(line, token)),
                 },
@@ -348,18 +373,6 @@ impl Parser {
             };
 
         }
-
-        /*
-        match &self.state {
-            ExpectingValue(_) => {
-                return Err(ParseError::missing_column_value(line));
-            },
-            IdentifierExpectingReferenceValue { identifier, .. } => {
-                return Err(ParseError::unexpected_token(line, Token::Identifier(identifier.clone())));
-            },
-            _ => (),
-        }
-        */
 
         Ok(self)
     }
