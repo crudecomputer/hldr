@@ -1,4 +1,21 @@
+use std::fmt;
+
 use super::error::{LexError, Position};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Keyword {
+    As,
+}
+
+impl fmt::Display for Keyword {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Keyword::*;
+
+        Ok(match self{
+            As => write!(f, "as")?,
+        })
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -6,6 +23,7 @@ pub enum Token {
     Boolean(bool),
     Identifier(String),
     Indent(String),
+    Keyword(Keyword),
     Newline,
     Number(String),
     Period,
@@ -333,6 +351,7 @@ fn identifier_to_token(s: String) -> Token {
         "_" => Token::Underscore,
         "true" | "t" => Token::Boolean(true),
         "false" | "f" => Token::Boolean(false),
+        "as" => Token::Keyword(Keyword::As),
         _ => Token::Identifier(s),
     }
 }

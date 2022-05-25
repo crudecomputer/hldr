@@ -1,7 +1,7 @@
 pub mod error;
 mod parser;
 
-use super::lex::Token;
+use super::lex::{Keyword, Token};
 pub use error::{ParseError, ParseErrorKind};
 use parser::Parser;
 
@@ -14,7 +14,7 @@ pub struct ReferenceValue {
     pub column: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Boolean(bool),
     Number(String),
@@ -22,13 +22,13 @@ pub enum Value {
     Reference(Box<ReferenceValue>)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
     pub name: String,
     pub value: Value,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Record {
     pub name: Option<String>,
     pub attributes: Vec<Attribute>,
@@ -43,8 +43,9 @@ impl Record {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Table {
+    pub alias: Option<String>,
     pub name: String,
     pub records: Vec<Record>,
 }
@@ -52,6 +53,7 @@ pub struct Table {
 impl Table {
     pub fn new(name: String) -> Self {
         Self {
+            alias: None,
             name,
             records: Vec::new(),
         }
@@ -79,7 +81,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Vec<Schema>, ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Token as T, *};
+    use super::{Token as T, Keyword as KW, *};
     use super::super::lex::lex;
 
     #[test]
@@ -170,6 +172,7 @@ mod tests {
             T::Newline,
             T::Indent("  ".to_owned()),
             T::Identifier("my_table".to_owned()),
+            T::Newline,
         ];
 
         assert_eq!(
@@ -178,7 +181,7 @@ mod tests {
                 name: "public".to_owned(),
                 tables: vec![Table {
                     name: "my_table".to_owned(),
-                    records: Vec::new(),
+                    ..Default::default()
                 }],
             },])
         );
@@ -194,6 +197,7 @@ mod tests {
             T::Newline,
             T::Indent("    ".to_owned()),
             T::Identifier("table2".to_owned()),
+            T::Newline,
         ];
 
         assert_eq!(
@@ -203,11 +207,45 @@ mod tests {
                 tables: vec![
                     Table {
                         name: "table1".to_owned(),
-                        records: Vec::new(),
+                        ..Default::default()
                     },
                     Table {
                         name: "table2".to_owned(),
-                        records: Vec::new(),
+                        ..Default::default()
+                    },
+                ],
+            },])
+        );
+    }
+
+    #[test]
+    fn tables_with_aliases() {
+        let tokens = vec![
+            T::Identifier("public".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("table1".to_owned()),
+            T::Keyword(KW::As),
+            T::Identifier("t1".to_owned()),
+            T::Newline,
+            T::Indent("    ".to_owned()),
+            T::Identifier("table2".to_owned()),
+            T::Newline,
+        ];
+
+        assert_eq!(
+            parse(tokens),
+            Ok(vec![Schema {
+                name: "public".to_owned(),
+                tables: vec![
+                    Table {
+                        alias: Some("t1".to_owned()),
+                        name: "table1".to_owned(),
+                        ..Default::default()
+                    },
+                    Table {
+                        name: "table2".to_owned(),
+                        ..Default::default()
                     },
                 ],
             },])
@@ -224,6 +262,7 @@ mod tests {
             T::Newline,
             T::Indent("    ".to_owned()),
             T::QuotedIdentifier("another table".to_owned()),
+            T::Newline,
         ];
 
         assert_eq!(
@@ -233,11 +272,11 @@ mod tests {
                 tables: vec![
                     Table {
                         name: "a table".to_owned(),
-                        records: Vec::new(),
+                        ..Default::default()
                     },
                     Table {
                         name: "another table".to_owned(),
-                        records: Vec::new(),
+                        ..Default::default()
                     },
                 ],
             },])
@@ -279,8 +318,9 @@ mod tests {
                     name: "person".to_owned(),
                     records: vec![Record {
                         name: Some("kevin".to_owned()),
-                        attributes: Vec::new(),
-                    }]
+                        ..Default::default()
+                    }],
+                    ..Default::default()
                 }],
             },])
         );
@@ -314,7 +354,8 @@ mod tests {
                                 name: Some("kevin".to_owned()),
                                 attributes: Vec::new(),
                             },
-                        ]
+                        ],
+                        ..Default::default()
                     },
                     Table {
                         name: "pet".to_owned(),
@@ -327,7 +368,8 @@ mod tests {
                                 name: Some("cupid".to_owned()),
                                 attributes: Vec::new(),
                             },
-                        ]
+                        ],
+                        ..Default::default()
                     },
                 ],
             },])
@@ -352,10 +394,8 @@ mod tests {
                 name: "public".to_owned(),
                 tables: vec![Table {
                     name: "person".to_owned(),
-                    records: vec![Record {
-                        name: None,
-                        attributes: Vec::new(),
-                    }]
+                    records: vec![Record::default()],
+                    ..Default::default()
                 }],
             },])
         );
@@ -393,28 +433,18 @@ mod tests {
                     Table {
                         name: "person".to_owned(),
                         records: vec![
-                            Record {
-                                name: None,
-                                attributes: Vec::new(),
-                            },
-                            Record {
-                                name: None,
-                                attributes: Vec::new(),
-                            },
-                        ]
+                            Record::default(),
+                            Record::default(),
+                        ],
+                        ..Default::default()
                     },
                     Table {
                         name: "pet".to_owned(),
                         records: vec![
-                            Record {
-                                name: None,
-                                attributes: Vec::new(),
-                            },
-                            Record {
-                                name: None,
-                                attributes: Vec::new(),
-                            },
-                        ]
+                            Record::default(),
+                            Record::default(),
+                        ],
+                        ..Default::default()
                     },
                 ],
             },])
@@ -461,7 +491,8 @@ mod tests {
                                 name: None,
                                 attributes: Vec::new(),
                             },
-                        ]
+                        ],
+                        ..Default::default()
                     },
                     Table {
                         name: "pet".to_owned(),
@@ -474,7 +505,8 @@ mod tests {
                                 name: Some("eiyre".to_owned()),
                                 attributes: Vec::new(),
                             },
-                        ]
+                        ],
+                        ..Default::default()
                     },
                 ],
             },])
@@ -531,7 +563,8 @@ mod tests {
                             name: "likes_coffee".to_owned(),
                             value: Value::Boolean(true),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -565,7 +598,8 @@ mod tests {
                             name: "pets".to_owned(),
                             value: Value::Number("2".to_owned()),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             }])
         );
@@ -595,7 +629,8 @@ mod tests {
                             name: "pets".to_owned(),
                             value: Value::Number("2.5".to_owned()),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             }])
         );
@@ -629,7 +664,8 @@ mod tests {
                             name: "name".to_owned(),
                             value: Value::Text("Kevin".to_owned()),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -661,7 +697,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -704,7 +741,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -736,7 +774,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -777,7 +816,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -809,7 +849,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -849,7 +890,8 @@ mod tests {
                                 column: "column2".to_owned(),
                             })),
                         }]
-                    }]
+                    }],
+                    ..Default::default()
                 }]
             },])
         );
@@ -933,19 +975,25 @@ mod tests {
                                 ],
                             },
                         ],
+                        ..Default::default()
                     },],
                 },
                 Schema {
                     name: "private_schema".to_owned(),
                     tables: vec![Table {
                         name: "pet".to_owned(),
-                        records: vec![Record {
-                            name: Some("cupid".to_owned()),
-                            attributes: vec![Attribute {
-                                name: "loves_belly_scratches".to_owned(),
-                                value: Value::Boolean(true),
-                            },],
-                        },],
+                        records: vec![
+                            Record {
+                                name: Some("cupid".to_owned()),
+                                attributes: vec![
+                                    Attribute {
+                                        name: "loves_belly_scratches".to_owned(),
+                                        value: Value::Boolean(true),
+                                    },
+                                ],
+                            },
+                        ],
+                        ..Default::default()
                     },],
                 }
             ])
