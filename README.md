@@ -5,7 +5,7 @@
 > See [Journey](https://github.com/kevlarr/jrny)
 > for a complementary, straightforward SQL-based database migration tool.
 
-**Important:** Placeholder is very, very alpha and feature-incomplete.
+**Important:** Placeholder is in quite the alpha state and still very feature-incomplete.
 
 Placeholder strives to make generating _simple_ data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
@@ -14,6 +14,8 @@ with dedicated fixtures and factory libraries.
 With some powerful, easy to read syntax and a single `hldr` command,
 you can have a well populated database in no time without setting up
 languages, dependencies, or verbose factory classes.
+
+See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr) for syntax highlighting examples.
 
 ## Usage
 
