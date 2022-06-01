@@ -44,5 +44,5 @@ fn main() {
         config
     };
 
-    hldr::place(&config);
+    hldr::place(&config).unwrap();
 }
