@@ -11,37 +11,29 @@ struct Command {
     commit: bool,
 
     /// Path to the data file to load
-    #[clap(short = 'f', long = "data-file", name = "FILE")]
-    data_file: Option<PathBuf>,
+    #[clap(short = 'f', long = "file", name = "FILE")]
+    file: Option<PathBuf>,
 
     /// Database connection string - for allowed formats see: https://docs.rs/postgres/0.19.2/postgres/config/struct.Config.html
-    #[clap(short = 'd', long = "database-url", name = "URL")]
-    database_url: Option<String>,
-
-    /// Search path if overriding the default
-    #[clap(short = 's', long = "search-path", name = "PATH")]
-    search_path: Option<String>,
+    #[clap(short = 'c', long = "database-conn", name = "CONN")]
+    database_conn: Option<String>,
 }
 
 fn main() {
     let cmd = Command::parse();
-    let config = {
-        let mut config = hldr::Config::new("hldr.toml");
+    let settings = {
+        let mut settings = hldr::Settings::new("hldr.toml");
 
-        if let Some(df) = cmd.data_file {
-            config.data_file = df.clone();
+        if let Some(f) = cmd.file {
+            settings.file = f.clone();
         }
 
-        if let Some(url) = cmd.database_url {
-            config.database.url = url.clone();
+        if let Some(dc) = cmd.database_conn {
+            settings.database_conn = dc.clone();
         }
 
-        if let Some(sp) = cmd.search_path {
-            config.database.search_path = Some(sp.clone());
-        }
-
-        config
+        settings
     };
 
-    hldr::place(&config, cmd.commit).unwrap();
+    hldr::place(&settings, cmd.commit).unwrap();
 }
