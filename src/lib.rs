@@ -22,10 +22,11 @@ pub struct DatabaseConfig {
 pub struct Config {
     #[serde(default)]
     pub commit: bool,
-    pub database: DatabaseConfig,
 
     #[serde(default = "default_data_file")]
     pub data_file: PathBuf,
+
+    pub database: DatabaseConfig,
 }
 
 impl Config {
@@ -50,14 +51,18 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
-
 pub fn place(config: &Config) -> Result<(), Box<dyn Error>> {
-    let text = fs::read_to_string(&config.data_file)?;
-    let tokens = lex::lex(&text)?;
+    let content = fs::read_to_string(&config.data_file)?;
+    let tokens = lex::lex(&content)?;
     let schemas = parse::parse(tokens)?;
     let validated = validate::validate(schemas)?;
 
     let mut client = load::new_client(&config.database.url)?;
+
+    if let Some(sp) = &config.database.search_path {
+        client.simple_query(&format!("SET search_path TO {}", sp))?;
+    }
+
     let mut transaction = client.transaction()?;
 
     load::load(&mut transaction, &validated)?;
@@ -70,4 +75,41 @@ pub fn place(config: &Config) -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod root_tests {
+    use std::env;
+
+    use super::{place, Config, DatabaseConfig, PathBuf};
+
+    #[test]
+    #[should_panic]
+    fn panics_without_search_path() {
+        let database_url = env::var("HLDR_TEST_DATABASE_URL").unwrap();
+        let config = Config {
+            commit: false,
+            data_file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
+            database: DatabaseConfig {
+                search_path: None,
+                url: database_url.clone(),
+            }
+        };
+
+        place(&config).unwrap();
+    }
+
+    #[test]
+    fn respects_search_path() {
+        let config = Config {
+            commit: false,
+            data_file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
+            database: DatabaseConfig {
+                search_path: Some("schema1, schema2".to_owned()),
+                url: env::var("HLDR_TEST_DATABASE_URL").unwrap().clone(),
+            }
+        };
+
+        place(&config).unwrap();
+    }
 }

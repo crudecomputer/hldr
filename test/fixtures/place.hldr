@@ -1,0 +1,22 @@
+schema1
+  person as p
+    _
+      name 'anon'
+
+    kevin
+      name      'Kevin'
+      birthdate '1982-11-19'
+
+    stace
+      name 'Stacey!!'
+
+  pet
+    eiyre
+      name      'Eiyre'
+      person_id p@kevin.id
+      species   'cat'
+
+    cupid
+      name      'Cupid'
+      person_id p@stace.id
+      species   @eiyre.species
