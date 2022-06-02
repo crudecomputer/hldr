@@ -40,9 +40,8 @@ fn main() {
             config.database.search_path = Some(sp.clone());
         }
 
-        config.commit = cmd.commit;
         config
     };
 
-    hldr::place(&config).unwrap();
+    hldr::place(&config, cmd.commit).unwrap();
 }
