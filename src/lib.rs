@@ -11,27 +11,25 @@ pub mod validate;
 pub use error::{HldrError, HldrErrorKind};
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Settings {
+pub struct Options {
     #[serde(default = "default_data_file")]
-    pub file: PathBuf,
+    pub data_file: PathBuf,
 
     #[serde(default)]
     pub database_conn: String,
 }
 
-impl Settings {
-    pub fn new(filepath: &str) -> Self {
-        let path = PathBuf::from(filepath);
-
-        if !path.exists() {
-            panic!("{} file is missing", filepath);
+impl Options {
+    pub fn new(filepath: &PathBuf) -> Self {
+        if !filepath.exists() {
+            panic!("{} file is missing", filepath.display());
         }
 
-        if !path.is_file() {
-            panic!("{} is not a file", filepath);
+        if !filepath.is_file() {
+            panic!("{} is not a file", filepath.display());
         }
 
-        let contents = fs::read_to_string(&path).unwrap();
+        let contents = fs::read_to_string(&filepath).unwrap();
 
         toml::from_str(&contents).unwrap()
     }
@@ -41,13 +39,13 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
-pub fn place(settings: &Settings, commit: bool) -> Result<(), Box<dyn Error>> {
-    let content = fs::read_to_string(&settings.file)?;
+pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
+    let content = fs::read_to_string(&options.data_file)?;
     let tokens = lex::lex(&content)?;
     let schemas = parse::parse(tokens)?;
     let validated = validate::validate(schemas)?;
 
-    let mut client = load::new_client(&settings.database_conn)?;
+    let mut client = load::new_client(&options.database_conn)?;
     let mut transaction = client.transaction()?;
 
     load::load(&mut transaction, &validated)?;
@@ -66,15 +64,15 @@ pub fn place(settings: &Settings, commit: bool) -> Result<(), Box<dyn Error>> {
 mod root_tests {
     use std::env;
 
-    use super::{place, Settings, PathBuf};
+    use super::{place, Options, PathBuf};
 
     #[test]
     fn it_works() {
-        let settings = Settings {
-            file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
+        let options = Options {
+            data_file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
             database_conn: env::var("HLDR_TEST_DATABASE_URL").unwrap().clone(),
         };
 
-        place(&settings, false).unwrap();
+        place(&options, false).unwrap();
     }
 }
