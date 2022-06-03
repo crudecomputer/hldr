@@ -10,7 +10,7 @@ pub mod validate;
 
 pub use error::{HldrError, HldrErrorKind};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Default, Debug, Deserialize)]
 pub struct Options {
     #[serde(default = "default_data_file")]
     pub data_file: PathBuf,
@@ -20,18 +20,20 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn new(filepath: &PathBuf) -> Self {
+    pub fn new(filepath: &PathBuf) -> Result<Option<Self>, String> {
         if !filepath.exists() {
-            panic!("{} file is missing", filepath.display());
+            return Ok(None);
         }
 
         if !filepath.is_file() {
-            panic!("{} is not a file", filepath.display());
+            return Err(format!("{} is not a file", filepath.display()));
         }
 
-        let contents = fs::read_to_string(&filepath).unwrap();
+        let contents = fs::read_to_string(&filepath)
+            .map_err(|e| e.to_string())?;
 
-        toml::from_str(&contents).unwrap()
+        Ok(toml::from_str(&contents)
+            .map_err(|e| e.to_string())?)
     }
 }
 

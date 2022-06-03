@@ -26,7 +26,9 @@ struct Command {
 fn main() {
     let cmd = Command::parse();
     let options = {
-        let mut options = hldr::Options::new(&cmd.opts_file);
+        let mut options = hldr::Options::new(&cmd.opts_file)
+            .unwrap() // consume result
+            .unwrap_or_else(|| hldr::Options::default());
 
         // The options file can specify the data file and connection string,
         // which should be overridden by command-line options
