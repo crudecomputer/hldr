@@ -3,20 +3,20 @@ schema1
     _
       name 'anon'
 
-    kevin
-      name      'Kevin'
-      birthdate '1982-11-19'
+    p1
+      name      'person 1'
+      birthdate '1900-01-01'
 
-    stace
-      name 'Stacey!!'
+    p2
+      name 'person 2'
 
   pet
-    eiyre
-      name      'Eiyre'
-      person_id p@kevin.id
+    p1
+      name      'pet 1'
+      person_id p@p1.id
       species   'cat'
 
-    cupid
-      name      'Cupid'
-      person_id p@stace.id
-      species   @eiyre.species
+    _
+      name      'pet 2'
+      person_id p@p2.id
+      species   @p1.species
