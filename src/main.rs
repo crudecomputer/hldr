@@ -6,76 +6,42 @@ use clap::{crate_version, Parser};
 #[derive(Parser, Debug)]
 #[clap(version = crate_version!())]
 struct Command {
-    /// Database connection string - for allowed formats see: https://docs.rs/postgres/0.19.2/postgres/config/struct.Config.html
-
-    #[clap(short = 'd', long = "database-conn", name = "CONN")]
-    database_conn: Option<String>,
-
-    /// Path to the data file to load
-    #[clap(short = 'f', long = "data-file", name = "FILE")]
-    data_file: Option<PathBuf>,
-
-    /// Commit the transaction, rolled back by default
+    /// Commit the transaction
     #[clap(long = "commit")]
     commit: bool,
-}
 
-struct Vars {
+    /// Path to the .hldr data file to load [default: place.hldr if not specified in options file]
+    #[clap(short = 'f', long = "data-file", name = "DATA-FILE")]
+    file: Option<PathBuf>,
+
+    /// Path to the optional .toml options file
+    #[clap(short = 'o', long = "opts-file", name = "OPTS-FILE", default_value = "hldr-opts.toml")]
+    opts_file: PathBuf,
+
+    /// Database connection string, either key/value pair or URI style
+    #[clap(short = 'c', long = "database-conn", name = "CONN")]
     database_conn: Option<String>,
-    data_file: Option<PathBuf>,
-}
-
-impl Vars {
-    fn empty() -> Self {
-        Self {
-            database_conn: None,
-            data_file: None,
-        }
-    }
 }
 
 fn main() {
     let cmd = Command::parse();
+    let options = {
+        let mut options = hldr::Options::new(&cmd.opts_file)
+            .unwrap() // consume result
+            .unwrap_or_else(|| hldr::Options::default());
 
-    match (cmd.database_conn, cmd.data_file) {
-        (Some(database_conn), Some(data_file)) => {
-            hldr::place(&database_conn, &data_file, cmd.commit).unwrap();
+        // The options file can specify the data file and connection string,
+        // which should be overridden by command-line options
+        if let Some(f) = cmd.file {
+            options.data_file = f.clone();
         }
-        (dc, df) => {
-            let vars = vars_from_file();
-            hldr::place(
-                &dc.unwrap_or_else(|| vars.database_conn.expect("database_conn not found in file")),
-                &df.or(vars.data_file)
-                    .unwrap_or_else(|| PathBuf::from("place.hldr")),
-                cmd.commit,
-            )
-            .unwrap()
+
+        if let Some(dc) = cmd.database_conn {
+            options.database_conn = dc.clone();
         }
-    }
-}
 
-fn vars_from_file() -> Vars {
-    let varfile = PathBuf::from(".placehldr");
+        options
+    };
 
-    if !varfile.exists() {
-        panic!(".placehldr file is missing");
-    }
-
-    if !varfile.is_file() {
-        panic!(".placehldr is not a file");
-    }
-
-    let mut vars = Vars::empty();
-
-    for item in dotenv::from_path_iter(&varfile).unwrap() {
-        let (key, val) = item.unwrap();
-
-        match key.as_ref() {
-            "database_conn" => vars.database_conn = Some(val),
-            "data_file" => vars.data_file = Some(PathBuf::from(&val)),
-            _ => panic!("Unexpected variable: {}", key),
-        }
-    }
-
-    vars
+    hldr::place(&options, cmd.commit).unwrap();
 }

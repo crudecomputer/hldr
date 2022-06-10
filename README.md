@@ -2,207 +2,303 @@
 
 *Simple, declarative data seeding for PostgreSQL*
 
-> See [Journey](https://github.com/kevlarr/jrny)
-> for a complementary, straightforward SQL-based database migration tool.
-
 **Important:** Placeholder is in quite the alpha state and still very feature-incomplete.
 
 Placeholder strives to make generating _simple_ data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
 with dedicated fixtures and factory libraries.
 
-With some powerful, easy to read syntax and a single `hldr` command,
+With some easy to read syntax and a single `hldr` command,
 you can have a well populated database in no time without setting up
 languages, dependencies, or verbose factory classes.
 
-See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr) for syntax highlighting examples.
+See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr)
+(also in an alpha state) for syntax highlighting examples.
 
-## Usage
+## Contents
+
+1. [Installation](#installation)
+2. [Usage](#usage)
+   1. [Command-line options](#options)
+   2. [The options file](#the-options-file)
+3. [Features](#features)
+   1. [General syntax](#general-syntax)
+   2. [Literal values](#literal-values)
+   3. [Comments](#comments)
+   4. [Quoted identifiers](#quoted-identifiers)
+   5. [Named records](#named-records)
+   6. [References](#references)
+   7. [Table aliases](#table-aliases)
+4. [Planned features](#planned-features)
+
+## Installation
 
 Placeholder currently must be compiled from source but precompiled
 binaries for common platforms should be [available soon](https://github.com/kevlarr/hldr/issues/16).
 
-Once compiled and installed to your path,
-to run the command you must specify the file to load and the
-database connection string.
+## Usage
 
-These can be specified by the `-f [or --data-file]` and
-`-d [or --database-conn]` options.
+Placeholder is designed to be easy to use.
+Run `hldr --help` or `hldr -h` to see usage and all available options.
 
 ```
-# If installed in path as `hldr`
-$ hldr -f path/to/data/file -d postgres://user:password@host:port/db
+USAGE:
+    hldr [OPTIONS]
+
+OPTIONS:
+    -c, --database-conn <CONN>     Database connection string, either key/value pair or URI style
+        --commit                   Commit the transaction
+    -f, --data-file <DATA-FILE>    Path to the .hldr data file to load [default: place.hldr if not
+                                   specified in options file]
+    -h, --help                     Print help information
+    -o, --opts-file <OPTS-FILE>    Path to the optional .toml options file [default: hldr-opts.toml]
+    -V, --version                  Print version information
 ```
 
-### Default files
+### Options
 
-There are several alternatives to using the command-line flags.
+Ultimately, there are **3 things** to care about.
 
-If the data file is not specified, `hldr` will by default look for a data file named `place.hldr`
-in the current directory.
+#### 1. The data file to load
 
-Additionally, a `.placehldr` file (also in the current directory) can be used to specify either
-or both of the variables. For instance:
+By default, `hldr` will look for a file called `place.hldr` to load,
+but any other file can be loaded with the `--data-file <path>` or `-f <path>` option.
 
-```
-# For values with spaces, eg. the key-value connection string format, use double quotes.
-# database_conn="host=localhost dbname=my_database user=postgres"
-database_conn=postgres://postgres@localhost/my_database
+```bash
+# Load the `place.hldr` file by default
+$ hldr
 
-# Specifying this means hldr will no longer look for the `place.hldr` default data file.
-# The .hldr extension is recommended but not necessary.
-data_file="my file.hldr"
+# Or specify a different file
+$ hldr --data-file example.hldr
+$ hldr -f ../example.hldr
 ```
 
-Any variable in the `.placehldr` file will be overridden in favor of any command-line options
-that are also supplied.
+#### 2. The database connection
 
-### Committing
+To specify database connection details, pass either key-value pair or
+URI-style string via `--database-conn` or `-c`.
+For available options, see the
+[postgres driver docs](https://docs.rs/postgres/latest/postgres/config/struct.Config.html).
+In general, options are similar to `libpq`.
 
-By default, Placeholder will roll back the transaction,
-which is useful to test that all records can be created
-before finally applying them.
-If you want to commit the records, pass the `--commit` flag.
+```bash
+# URI style
+$ hldr --database-conn "postgresql://user:password@host:port/dbname"
+$ hldr -c "postgresql://user:password@host:port/dbname"
 
+# Key/value style - useful when including `options` eg. to set custom search path
+$ hldr --database-conn "user=me password=passy options='-c search_path=schema1,schema2'"
+$ hldr -c "user=me password=passy options='-c search_path=schema1,schema2'"
 ```
+
+#### 3. Whether the transaction should be committed or rolled back
+
+By default `hldr` rolls back the transaction to encourage dry-runs,
+so pass the `--commit` flag to override that behavior.
+
+```bash
+$ hldr
+Rolling back changes, pass `--commit` to apply
+
 $ hldr --commit
+Committing changes
 ```
+
+### The options file
+
+Specifying command-line options can be convenient (eg. when using
+environment variables on CI/CD) but can be especially tedious for
+local development.
+
+To make life easier, the database connection and default file can be
+specified in a `hldr-opts.toml` file.
+
+```toml
+# hldr-opts.toml
+#
+# None of these values are required, and if supplied they will be overridden
+# by any command-line options present
+
+data_file = "../some-custom-file.hldr"
+database_conn = "user=me password=passy options='-c search_path=schema1,schema2'"
+```
+
+If for whatever reason `hldr-opts.toml` is a disagreeable name,
+a custom options file can be specified.
+
+```bash
+$ hldr --opts-file ../path/to/file.toml
+$ hldr -o ../path/to/file.toml
+```
+
+**Important:** As this file can be environment-dependent and contain sensitive
+details, it **should not be checked into version control**.
 
 ## Features
 
+### General syntax
+
 Placeholder uses a clean, whitespace-significant syntax,
 with an indentation style of your choosing. Tabs or 3 spaces?
-Do whatever you want, as long as it's consistent.
+Do whatever you want, as long as it's consistent within the file.
 
-Records themselves can either be given a name, or they can be anonymous.
-Naming records allows their columns (even those populated by the database)
-to be referenced in other records.
-
-There are literal values for booleans, numbers, and text strings.
-
-- Numbers can be integers or floats; it will be up to the database to
-coerce them to the right type based on the column.
-
-- Text strings will also be coerced, which means they can be
-used to represent `varchar`, `text`, `timestamptz`, arrays like `int[]`, or any
-other type (even user-defined types) that can be constructed in SQL from string literals.
-
-The general file format looks like...
+At a high level, a `.hldr` file with a single table and two records (one named, one anonymous) would essentially look like...
 
 ```
-schema
-  table
-    record
-      column value
-```
-... where any number of schemas, tables, records, and attributes can be defined.
+schema_name
 
-For example, a simple file that looks like...
+  table_name
 
-```
-public
-  person
-    fry
-      name 'Philip J. Fry'
-      hair_color 'red'
+    record_name
+      column1 value1
+      column2 value2
 
-    leela
-      name 'Turanga Leela'
-
-  pet
-    _
-      name 'Nibbler'
+    _ 
+      column2 value3
 ```
 
-... will create three record (two named, one anonymous) like:
+... where records are grouped by table and tables are grouped by schema.
 
-```sql
-INSERT INTO "public"."person" ("name", "hair_color")
-  VALUES ('Philip J. Fry', 'red');
+### Literal values
 
-INSERT INTO "public"."person" ("name")
-  VALUES ('Turanga Leela');
+Currently, there are only literal values for booleans, numbers, and strings.
 
-INSERT INTO "public"."pet" ("name")
-  VALUES ('Nibbler');
-```
+`hldr` currently parses all values as strings and passes them to Postgres
+using the [simple query](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.4)
+protocol so that Postgres can convert values to their appropriate types.
+
+**Important:** This means that `hldr` does not protect against SQL injection
+from string values.
+
+#### Booleans
+
+Boolean values must be either `true` or `false`.
+Unlike SQL, values like `TRUE` or `f` are not supported.
+
+#### Numbers
+
+Numbers can be integer or decimal values - `hldr` does not distinguish between
+them or attempt to figure out their size.
+They are passed as strings and Postgres coerces them to the right type
+on a per-column basis.
+
+#### Strings
+
+Strings (single-quoted as in SQL) represent `char`, `varchar`, `text`, or
+any other type such as arrays, timestamps, or even custom types that can
+be represented as text.
+
+For example, an array of integers would currently be written as `'{1, 2, 3}'`.
+
+### Comments
 
 Comments, like SQL, begin with `--` and can either be newline or trailing comments.
 
 ```
-public
-  -- This table has people in it
-  person
-    fry -- This is a named record
-      name 'Philip J. Fry'
+schema
+  -- A newline comment
+  table
+    record
+      column value -- A trailing comment
+```
 
-    -- This is an anonymous record...
+### Quoted identifiers
+
+Schema, table, and column names must be double-quoted if they contain
+non-standard characters like whitespace or punctuation.
+Unlike in Postgres, however, identifiers are not automatically lowercased
+or truncated by default, so Pascal- or camel-cased names can be written as-is.
+
+```
+schema
+
+  some_table
+
     _
-      -- ... even though we know its name
-      name 'Morbo'
+      -- Whitespace, etc. in a schema, table, or column name requires quoting
+      "the answer to everything" 41
+
+  "some ridiculous table-name"
+    ...
+
+  -- But special casing does not
+  AnotherTable
+    ...
 ```
 
-Bare identifiers (ie. `public`, `person`, and `name` in the example above)
-are not lowercased or truncated automatically, like in SQL.
-Statements use quoted identifiers automatically,
-but (for the sake of the parser) you must explicitly quote identifiers
-that have whitespace, punctuation, etc.
+### Named records
 
-```
-"schema with whitespace"
-  "table.with -- dashes"
-    my_record
-      "column with spaces" 42
-```
-
-Records can also access values from other, named records using a fully-qualified
-format like `schema.table@record_name.column`.
-Columns do not need to be specified in the file to be referenced,
-such as columns with database defaults like primary keys.
+Records themselves can either be given a name, or they can be anonymous.
+Naming records allows their columns (even those populated by the database
+and not declared in the file) to be referenced in other records.
 
 ```
 public
   person
-    fry
-      name 'Philip J. Fry'
+    -- A named record
+    kevin
+      name 'Kevin'
 
-  pet
-    seymour
-      name 'Seymour Asses'
-      species 'Dog'
-      person_id public.person@fry.id
+    -- An anonymous record
+    _
+      name 'A Different Kevin'
+
+  name
+    -- Record names only need to be unique within
+    -- the given table
+    kevin
+      value 'Kevin'
+      origin 'Irish'
 ```
 
-Additionally, if the referenced table is in the same schema,
-the schema name can be omitted.
+### References
+
+Naming records allows them to be referenced elsewhere in the file,
+whether referencing a declared column *or* a column
+populated by default in the database.
+
+There are several supported reference formats:
+
+| Format | Example | When Allowed |
+| --- | --: | --- |
+| Fully-qualified | `schema.table@record.column` | Always |
+| Table-qualified | `table@record.column` | When referencing a table in the same schema |
+| Unqualified | `@record.column` | When referencing a record in the same table |
+
+To demonstrate when the different formats are used:
 
 ```
-public
-  person
-    fry
-      name 'Philip J. Fry'
+schema1
+  table1
+    record1
+      name 'Some record'
 
-  pet
-    seymour
-      name 'Seymour Asses'
-      species 'Dog'
-      person_id person@fry.id
+    record2
+      -- Referencing record in same table can omit schema & table names
+      name @record1.name
+
+  table2
+    record1
+      -- Referencing record from another table in same schema
+      -- can omit the schema name
+      --
+      -- Note that `id` is not specified in the record declaration but
+      -- can still be referenced
+      table1_id table1@record1.id
+
+schema2
+  table1
+    _
+      -- Must include schema and table when referencing a record from
+      -- a table in another schema
+      table2_id schema1.table2@record1.id
 ```
 
-Likewise, if the referenced record is in the same table,
-the table name can be omitted as well.
+### Table aliases
 
-```
-public
-  bumblenum
-    humble
-      favorite_saying 'Yum yum!'
-
-    stumble
-      favorite_saying @humble.favorite_saying
-```
-
-Tables can also have aliases to help shorten qualified references.
+Tables can also have aliases to help shorten qualified references,
+and either the table name or alias can be used in any of the reference
+formats as desired.
 
 ```
 public
@@ -210,24 +306,18 @@ public
     p1
       name 'Person 1'
 
-    p2
-      name 'Person 2'
-
-    p3
-      name 'Person 3'
-
   pet
     _
-      -- Aliases can be schema-qualified
-      person_id public.p@fry.id
+      -- Fully-qualified reference using alias
+      person_id public.p@p1.id
 
     _
-      -- Or only be alias-qualified
-      person_id p@fry.id
+      -- Table-qualified reference using alias
+      person_id p@p1.id
 
     _
       -- And the original table name can still be used
-      person_id person@fry.id
+      person_id person@p1.id
 ```
 
 ## Planned features
