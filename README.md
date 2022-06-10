@@ -4,8 +4,6 @@
 
 **Important:** Placeholder is in quite the alpha state and still very feature-incomplete.
 
----
-
 Placeholder strives to make generating _simple_ data much more succinct
 and cleaner than using SQL, PL/pgSQL, or even other programming languages
 with dedicated fixtures and factory libraries.
@@ -17,8 +15,6 @@ languages, dependencies, or verbose factory classes.
 See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr)
 (also in an alpha state) for syntax highlighting examples.
 
----
-
 ## Contents
 
 1. [Installation](#installation)
@@ -26,19 +22,19 @@ See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr
    1. [Command-line options](#options)
    2. [The options file](#the-options-file)
 3. [Features](#features)
-   1. [Literal values](#literal-values)
-   2. [Comments](#comments)
-   3. [Named records](#named-records)
-   4. [Table aliases](#table-aliases)
-
----
+   1. [General syntax](#general-syntax)
+   2. [Literal values](#literal-values)
+   3. [Comments](#comments)
+   4. [Quoted identifiers](#quoted-identifiers)
+   5. [Named records](#named-records)
+   6. [References](#references)
+   7. [Table aliases](#table-aliases)
+4. [Planned features](#planned-features)
 
 ## Installation
 
 Placeholder currently must be compiled from source but precompiled
 binaries for common platforms should be [available soon](https://github.com/kevlarr/hldr/issues/16).
-
----
 
 ## Usage
 
@@ -138,9 +134,9 @@ $ hldr -o ../path/to/file.toml
 **Important:** As this file can be environment-dependent and contain sensitive
 details, it **should not be checked into version control**.
 
----
-
 ## Features
+
+### General syntax
 
 Placeholder uses a clean, whitespace-significant syntax,
 with an indentation style of your choosing. Tabs or 3 spaces?
@@ -163,34 +159,16 @@ schema_name
 
 ... where records are grouped by table and tables are grouped by schema.
 
-Schema, table, and column names must match their names in the database,
-and they must be double-quoted if they contain non-standard
-characters like whitespace or punctuation.
-
-Unlike in Postgres, however, identifiers are not lowercased
-or truncated by default, so if you have Pascal- or camel-cased names, then you can just write them as-is.
-
-```
-schema
-
-  some_table
-
-    _
-      -- Whitespace in a schema, table, or column
-      -- name requires quoting
-      "the answer to everything" 41
-
-  -- But special casing DOES NOT
-  AnotherTable -- Instead of "AnotherTable"
-    ...
-```
-
 ### Literal values
 
-Currently, there are only literal values for booleans, numbers, and text strings.
-Arrays, timestamps, or any other type that can be
-represented as text (and coerced by Postgres into the appropriate
-type) can be passed as a text string.
+Currently, there are only literal values for booleans, numbers, and strings.
+
+`hldr` currently parses all values as strings and passes them to Postgres
+using the [simple query](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.4)
+protocol so that Postgres can convert values to their appropriate types.
+
+**Important:** This means that `hldr` does not protect against SQL injection
+from string values.
 
 #### Booleans
 
@@ -199,21 +177,16 @@ Unlike SQL, values like `TRUE` or `f` are not supported.
 
 #### Numbers
 
-Literal values are supported for both integers and floats, eg. `123` or `12.34`.
+Numbers can be integer or decimal values - `hldr` does not distinguish between
+them or attempt to figure out their size.
+They are passed as strings and Postgres coerces them to the right type
+on a per-column basis.
 
-They are actually parsed (and passed) as text strings, so `hldr` does not
-attempt to distinguish the size of the integer or float; it leaves that
-up to Postgres to determine on a per-column basis.
+#### Strings
 
-#### Text
-
-Text strings (whether `char`, `varchar`, or `text`) are all represented as single-quoted strings, eg. `'I am a text string'`.
-
-#### Other types
-
-Text strings can be used to represent any other type that has a
-text representation (timestamps, arrays, or even custom types) that
-Postgres can coerce to the appropriate type.
+Strings (single-quoted as in SQL) represent `char`, `varchar`, `text`, or
+any other type such as arrays, timestamps, or even custom types that can
+be represented as text.
 
 For example, an array of integers would currently be written as `'{1, 2, 3}'`.
 
@@ -229,11 +202,35 @@ schema
       column value -- A trailing comment
 ```
 
+### Quoted identifiers
+
+Schema, table, and column names must be double-quoted if they contain
+non-standard characters like whitespace or punctuation.
+Unlike in Postgres, however, identifiers are not automatically lowercased
+or truncated by default, so Pascal- or camel-cased names can be written as-is.
+
+```
+schema
+
+  some_table
+
+    _
+      -- Whitespace, etc. in a schema, table, or column name requires quoting
+      "the answer to everything" 41
+
+  "some ridiculous table-name"
+    ...
+
+  -- But special casing does not
+  AnotherTable
+    ...
+```
+
 ### Named records
 
 Records themselves can either be given a name, or they can be anonymous.
-Naming records allows their columns (even those populated by the database)
-to be referenced in other records.
+Naming records allows their columns (even those populated by the database
+and not declared in the file) to be referenced in other records.
 
 ```
 public
