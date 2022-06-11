@@ -32,8 +32,8 @@ impl Options {
         let contents = fs::read_to_string(&filepath)
             .map_err(|e| e.to_string())?;
 
-        Ok(toml::from_str(&contents)
-            .map_err(|e| e.to_string())?)
+        Ok(Some(toml::from_str(&contents)
+            .map_err(|e| e.to_string())?))
     }
 }
 
