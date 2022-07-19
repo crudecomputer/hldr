@@ -99,7 +99,10 @@ pub struct TokenPosition {
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     Start,
+    Float,
     Identifier,
+    Integer,
+    Period,
     Whitespace,
 }
 
@@ -131,9 +134,19 @@ impl Tokenizer {
         })
     }
 
-    fn receive(&mut self, c: char) -> State {
-        match self.state {
+    fn receive(&mut self, c: char) -> Result<State, LexError> {
+        Ok(match self.state {
             State::Start => match c {
+                '\0' => {
+                    State::Start
+                }
+                '.' => {
+                    State::Period
+                }
+                '0'..='9' => {
+                    self.stack.push(c);
+                    State::Integer
+                }
                 c if is_newline(c) => {
                     self.add_token(Token::Whitespace(Whitespace::Newline));
 
@@ -151,8 +164,22 @@ impl Tokenizer {
                     self.stack.push(c);
                     State::Identifier
                 }
-                '\0' => State::Start,
-                _ => panic!("Unexpected character '{}' at {}", c, self.start_position)
+                _ => return Err(self.unexpected(c))
+            }
+            State::Float => match c {
+                '0'..='9' => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Float
+                }
+                '.' => return Err(self.unexpected(c)),
+                _ => {
+                    let stack = self.drain_stack();
+                    let token = Token::Number(Number::Float(stack));
+
+                    self.add_token(token);
+                    self.reset_with(c)?
+                }
             }
             State::Identifier => match c {
                 c if is_valid_identifier(c) => {
@@ -161,15 +188,40 @@ impl Tokenizer {
                     State::Identifier
                 }
                 _ => {
-                    let ident = self.drain_stack();
-                    self.add_token(identifier_to_token(ident));
+                    let stack = self.drain_stack();
+                    let token = identifier_to_token(stack);
 
-                    self.end_position.column += 1;
-                    self.start_position = self.end_position;
-
-                    self.state = State::Start;
-                    self.receive(c)
+                    self.add_token(token);
+                    self.reset_with(c)?
                 }
+            }
+            State::Integer => match c {
+                '0'..='9' => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Integer
+                }
+                '.' => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Float
+                }
+                _ => {
+                    let stack = self.drain_stack();
+                    let token = Token::Number(Number::Int(stack));
+
+                    self.add_token(token);
+                    self.reset_with(c)?
+                }
+            }
+            State::Period => match c {
+                '0'..='9' => {
+                    self.stack.push('.');
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Float
+                }
+                _ => return Err(self.unexpected(c))
             }
             State::Whitespace => match c {
                 ' ' | '\t' => {
@@ -178,17 +230,29 @@ impl Tokenizer {
                     State::Whitespace
                 }
                 _ => {
-                    let ws = Whitespace::Inline(self.drain_stack());
-                    self.add_token(Token::Whitespace(ws));
+                    let stack = self.drain_stack();
+                    let token = Token::Whitespace(Whitespace::Inline(stack));
 
-                    self.end_position.column += 1;
-                    self.start_position = self.end_position;
-
-                    self.state = State::Start;
-                    self.receive(c)
+                    self.add_token(token);
+                    self.reset_with(c)?
                 }
             }
-        }
+        })
+    }
+
+    fn unexpected(&self, c: char) -> LexError {
+        let mut position = self.end_position;
+
+        position.column += 1;
+        LexError::unexpected_character(position, c)
+    }
+
+    fn reset_with(&mut self, c: char) -> Result<State, LexError> {
+        self.end_position.column += 1;
+        self.start_position = self.end_position;
+        self.state = State::Start;
+
+        self.receive(c)
     }
 
     fn drain_stack(&mut self) -> String {
@@ -197,12 +261,12 @@ impl Tokenizer {
 
     pub fn tokenize(mut self, input: &str) -> Result<Self, LexError> {
         for c in input.chars() {
-            self.state = self.receive(c);
+            self.state = self.receive(c)?;
         }
 
         // An 'escape hatch' to make sure the last state/stack are processed
         // if not ending back at the 'start' state
-        self.receive('\0');
+        self.receive('\0')?;
 
         Ok(self)
     }
@@ -239,6 +303,7 @@ mod tests {
     use pretty_assertions::{assert_eq, assert_ne};
 
     use super::*;
+    use super::super::error::LexErrorKind;
 
     fn tokenize(input: &str) -> Result<Vec<TokenPosition>, LexError> {
         Ok(Tokenizer::new().tokenize(input)?.tokens)
@@ -258,6 +323,14 @@ mod tests {
 
     fn ws_inline(input: &str) -> Token {
         Token::Whitespace(Whitespace::Inline(input.to_owned()))
+    }
+
+    fn integer(input: &str) -> Token {
+        Token::Number(Number::Int(input.to_owned()))
+    }
+
+    fn float(input: &str) -> Token {
+        Token::Number(Number::Float(input.to_owned()))
     }
 
     fn tp(start: (usize, usize), end: (usize, usize), token: Token) -> TokenPosition {
@@ -305,6 +378,40 @@ mod tests {
                 tp((2,  2), (2, 26), identifier("Here_that_are_Identifiers")),
             ])
         );
+    }
+
+    #[test]
+    fn numbers() {
+        let input = "12 12. 12.34 .34";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1,  2), integer("12")),
+                tp((1,  3), (1,  3), ws_inline(" ")),
+                tp((1,  4), (1,  6), float("12.")),
+                tp((1,  7), (1,  7), ws_inline(" ")),
+                tp((1,  8), (1, 12), float("12.34")),
+                tp((1, 13), (1, 13), ws_inline(" ")),
+                tp((1, 14), (1, 16), float(".34")),
+            ])
+        );
+    }
+
+    #[test]
+    fn double_decimal_fails() {
+        let input = "12.34.56";
+
+        assert_eq!(
+            tokenize(input),
+            Err(LexError {
+                kind: LexErrorKind::UnexpectedCharacter('.'),
+                position: Position {
+                    line: 1,
+                    column: 6,
+                },
+            })
+        )
     }
 
     #[test]

@@ -3,8 +3,8 @@ use super::Position;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LexErrorKind {
-    ExpectedComment,
-    ExpectedNumber,
+    // ExpectedComment,
+    // ExpectedNumber,
     UnclosedQuotedIdentifier,
     UnclosedString,
     UnexpectedCharacter(char),
@@ -17,19 +17,20 @@ pub struct LexError {
 }
 
 impl LexError {
-    pub fn expected_comment(position: Position) -> Self {
-        Self {
-            kind: LexErrorKind::ExpectedComment,
-            position,
-        }
-    }
+    // pub fn expected_comment(position: Position) -> Self {
+    //     Self {
+    //         kind: LexErrorKind::ExpectedComment,
+    //         position,
+    //     }
+    // }
 
-    pub fn expected_number(position: Position) -> Self {
-        Self {
-            kind: LexErrorKind::ExpectedNumber,
-            position,
-        }
-    }
+    // pub fn expected_number(position: Position) -> Self {
+    //     Self {
+    //         kind: LexErrorKind::ExpectedNumber,
+    //         position,
+    //     }
+    // }
+
     pub fn unclosed_quoted_identifier(position: Position) -> Self {
         Self {
             kind: LexErrorKind::UnclosedQuotedIdentifier,
@@ -63,8 +64,8 @@ impl fmt::Display for LexError {
         use LexErrorKind::*;
 
         match self.kind {
-            ExpectedComment => write!(f, "Expected comment {}", self.position),
-            ExpectedNumber => write!(f, "Expected number {}", self.position),
+            // ExpectedComment => write!(f, "Expected comment {}", self.position),
+            // ExpectedNumber => write!(f, "Expected number {}", self.position),
             UnclosedQuotedIdentifier => write!(f, "Unclosed quoted identifier {}", self.position),
             UnclosedString => write!(f, "Unclosed string {}", self.position),
             UnexpectedCharacter(c) => write!(f, "Unexpected character `{}` {}", c, self.position),
