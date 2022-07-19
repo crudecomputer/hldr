@@ -8,6 +8,8 @@ pub mod load;
 pub mod parse;
 pub mod validate;
 
+pub mod v2;
+
 pub use error::{HldrError, HldrErrorKind};
 
 #[derive(Clone, Default, Debug, Deserialize)]
