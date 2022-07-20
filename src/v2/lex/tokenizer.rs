@@ -103,6 +103,7 @@ pub enum State {
     Identifier,
     Integer,
     Period,
+    Underscore,
     Whitespace,
 }
 
@@ -139,6 +140,14 @@ impl Tokenizer {
             State::Start => match c {
                 '\0' => {
                     State::Start
+                }
+                '@' => {
+                    self.add_token(Token::Symbol(Symbol::AtSign));
+                    State::Start
+                }
+                '_' => {
+                    self.stack.push(c);
+                    State::Underscore
                 }
                 '.' => {
                     State::Period
@@ -222,6 +231,17 @@ impl Tokenizer {
                     State::Float
                 }
                 _ => return Err(self.unexpected(c))
+            }
+            State::Underscore => match c {
+                c if is_valid_identifier(c) => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Identifier
+                }
+                _ => {
+                    self.add_token(Token::Symbol(Symbol::Underscore));
+                    self.reset_with(c)?
+                }
             }
             State::Whitespace => match c {
                 ' ' | '\t' => {
@@ -358,6 +378,22 @@ mod tests {
     }
 
     #[test]
+    fn keywords() {
+        let input = "one_thing as another_thing";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1,  9), T::Identifier("one_thing".to_owned())),
+                tp((1, 10), (1, 10), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 11), (1, 12), T::Keyword(Keyword::As)),
+                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 14), (1, 26), T::Identifier("another_thing".to_owned())),
+            ])
+        )
+    }
+
+    #[test]
     fn numbers() {
         let input = "12 12. 12.34 .34";
 
@@ -376,23 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn keywords() {
-        let input = "one_thing as another_thing";
-
-        assert_eq!(
-            tokenize(input),
-            Ok(vec![
-                tp((1,  1), (1,  9), T::Identifier("one_thing".to_owned())),
-                tp((1, 10), (1, 10), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 11), (1, 12), T::Keyword(Keyword::As)),
-                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 14), (1, 26), T::Identifier("another_thing".to_owned())),
-            ])
-        )
-    }
-
-    #[test]
-    fn double_decimal_fails() {
+    fn numbers_double_decimal_fails() {
         let input = "12.34.56";
 
         assert_eq!(
@@ -405,6 +425,21 @@ mod tests {
                 },
             })
         )
+    }
+
+    #[test]
+    fn symbols() {
+        // This doesn't test periods, single quotes, or double quotes because they
+        // are special cases that are part of other tokens
+        let input = "@_";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1, 1), (1, 1), T::Symbol(Symbol::AtSign)),
+                tp((1, 1), (1, 1), T::Symbol(Symbol::Underscore)),
+            ])
+        );
     }
 
     #[test]

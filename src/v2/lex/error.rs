@@ -12,8 +12,8 @@ pub enum LexErrorKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LexError {
-    pub position: Position,
     pub kind: LexErrorKind,
+    pub position: Position,
 }
 
 impl LexError {
