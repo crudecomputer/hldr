@@ -101,6 +101,7 @@ pub enum State {
     Integer,
     QuotedIdentifier,
     Period,
+    Text,
     Underscore,
     Whitespace,
 }
@@ -146,6 +147,9 @@ impl Tokenizer {
                 '_' => {
                     self.stack.push(c);
                     State::Underscore
+                }
+                '\'' => {
+                    State::Text
                 }
                 '"' => {
                     State::QuotedIdentifier
@@ -227,16 +231,9 @@ impl Tokenizer {
             State::QuotedIdentifier => match c {
                 '"' => {
                     let stack = self.drain_stack();
-                    let token = Token::QuotedIdentifier(stack.to_owned());
+                    let token = Token::QuotedIdentifier(stack);
 
-                    // Unlike other places, we want to discard this character but we
-                    // still need to advance the positions properly and include the
-                    // character's position as the end point of the token
-                    self.end_position.column += 1;
-                    self.add_token(token);
-
-                    self.reset_position();
-                    State::Start
+                    self.add_token_and_advance(token)
                 }
                 _ => {
                     self.stack.push(c);
@@ -252,6 +249,19 @@ impl Tokenizer {
                     State::Float
                 }
                 _ => return Err(self.unexpected(c))
+            }
+            State::Text => match c {
+                '\'' => {
+                    let stack = self.drain_stack();
+                    let token = Token::Text(stack);
+
+                    self.add_token_and_advance(token)
+                }
+                _ => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Text
+                }
             }
             State::Underscore => match c {
                 c if is_valid_identifier(c) => {
@@ -286,6 +296,15 @@ impl Tokenizer {
 
         position.column += 1;
         LexError::unexpected_character(position, c)
+    }
+
+    /// Useful for adding a token when a character is encountered that needs
+    /// to be skipped, such as closing single- or double- quotes
+    fn add_token_and_advance(&mut self, token: Token) -> State {
+        self.end_position.column += 1;
+        self.add_token(token);
+        self.reset_position();
+        State::Start
     }
 
     fn reset_position(&mut self) {
@@ -472,7 +491,18 @@ mod tests {
 
     #[test]
     fn text() {
-        assert!(false);
+        let input = "identifier 'some text' \"and a quoted identifier\"";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1, 10), T::Identifier("identifier".to_owned())),
+                tp((1, 11), (1, 11), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 12), (1, 22), T::Text("some text".to_owned())),
+                tp((1, 23), (1, 23), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 24), (1, 48), T::QuotedIdentifier("and a quoted identifier".to_owned())),
+            ])
+        );
     }
 
     #[test]
