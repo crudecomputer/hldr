@@ -300,37 +300,14 @@ fn identifier_to_token(s: String) -> Token {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
-    use super::*;
     use super::super::error::LexErrorKind;
+    use super::{Token as T, Whitespace as WS};
+    use super::*;
 
     fn tokenize(input: &str) -> Result<Vec<TokenPosition>, LexError> {
         Ok(Tokenizer::new().tokenize(input)?.tokens)
-    }
-
-    fn boolean(b: bool) -> Token {
-        Token::Boolean(b)
-    }
-
-    fn identifier(input: &str) -> Token {
-        Token::Identifier(input.to_owned())
-    }
-
-    fn ws_newline() -> Token {
-        Token::Whitespace(Whitespace::Newline)
-    }
-
-    fn ws_inline(input: &str) -> Token {
-        Token::Whitespace(Whitespace::Inline(input.to_owned()))
-    }
-
-    fn integer(input: &str) -> Token {
-        Token::Number(Number::Int(input.to_owned()))
-    }
-
-    fn float(input: &str) -> Token {
-        Token::Number(Number::Float(input.to_owned()))
     }
 
     fn tp(start: (usize, usize), end: (usize, usize), token: Token) -> TokenPosition {
@@ -354,9 +331,9 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1, 1), (1,  4), boolean(true)),
-                tp((1, 5), (1,  8), ws_inline(" \t  ")),
-                tp((1, 9), (1, 13), boolean(false)),
+                tp((1, 1), (1,  4), T::Boolean(true)),
+                tp((1, 5), (1,  8), T::Whitespace(WS::Inline(" \t  ".to_owned()))),
+                tp((1, 9), (1, 13), T::Boolean(false)),
             ])
         );
     }
@@ -368,14 +345,14 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  5), identifier("other")),
-                tp((1,  6), (1,  9), ws_inline(" \t  ")),
-                tp((1, 10), (1, 16), identifier("_things")),
-                tp((1, 17), (1, 17), ws_inline(" ")),
-                tp((1, 18), (1, 18), ws_newline()),
+                tp((1,  1), (1,  5), T::Identifier("other".to_owned())),
+                tp((1,  6), (1,  9), T::Whitespace(WS::Inline(" \t  ".to_owned()))),
+                tp((1, 10), (1, 16), T::Identifier("_things".to_owned())),
+                tp((1, 17), (1, 17), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 18), (1, 18), T::Whitespace(WS::Newline)),
 
-                tp((2,  1), (2,  1), ws_inline(" ")),
-                tp((2,  2), (2, 26), identifier("Here_that_are_Identifiers")),
+                tp((2,  1), (2,  1), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((2,  2), (2, 26), T::Identifier("Here_that_are_Identifiers".to_owned())),
             ])
         );
     }
@@ -387,15 +364,31 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  2), integer("12")),
-                tp((1,  3), (1,  3), ws_inline(" ")),
-                tp((1,  4), (1,  6), float("12.")),
-                tp((1,  7), (1,  7), ws_inline(" ")),
-                tp((1,  8), (1, 12), float("12.34")),
-                tp((1, 13), (1, 13), ws_inline(" ")),
-                tp((1, 14), (1, 16), float(".34")),
+                tp((1,  1), (1,  2), T::Number(Number::Int("12".to_owned()))),
+                tp((1,  3), (1,  3), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1,  4), (1,  6), T::Number(Number::Float("12.".to_owned()))),
+                tp((1,  7), (1,  7), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1,  8), (1, 12), T::Number(Number::Float("12.34".to_owned()))),
+                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 14), (1, 16), T::Number(Number::Float(".34".to_owned()))),
             ])
         );
+    }
+
+    #[test]
+    fn keywords() {
+        let input = "one_thing as another_thing";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1,  9), T::Identifier("one_thing".to_owned())),
+                tp((1, 10), (1, 10), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 11), (1, 12), T::Keyword(Keyword::As)),
+                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 14), (1, 26), T::Identifier("another_thing".to_owned())),
+            ])
+        )
     }
 
     #[test]
