@@ -36,12 +36,10 @@ impl fmt::Display for Number {
     }
 }
 
-/// Set of possible symbol tokens
+/// Set of possible stand-alone symbol tokens
 #[derive(Clone, Debug, PartialEq)]
 pub enum Symbol {
     AtSign,
-    DoubleQuote,
-    Period,
     Underscore,
 }
 
@@ -51,8 +49,6 @@ impl fmt::Display for Symbol {
 
         Ok(match self{
             AtSign => write!(f, "@")?,
-            DoubleQuote => write!(f, "\"")?,
-            Period => write!(f, ".")?,
             Underscore => write!(f, "_")?,
         })
     }
@@ -83,6 +79,7 @@ pub enum Token {
     Identifier(String),
     Keyword(Keyword),
     Number(Number),
+    QuotedIdentifier(String),
     Symbol(Symbol),
     Text(String),
     Whitespace(Whitespace),
@@ -102,6 +99,7 @@ pub enum State {
     Float,
     Identifier,
     Integer,
+    QuotedIdentifier,
     Period,
     Underscore,
     Whitespace,
@@ -148,6 +146,9 @@ impl Tokenizer {
                 '_' => {
                     self.stack.push(c);
                     State::Underscore
+                }
+                '"' => {
+                    State::QuotedIdentifier
                 }
                 '.' => {
                     State::Period
@@ -223,6 +224,26 @@ impl Tokenizer {
                     self.reset_with(c)?
                 }
             }
+            State::QuotedIdentifier => match c {
+                '"' => {
+                    let stack = self.drain_stack();
+                    let token = Token::QuotedIdentifier(stack.to_owned());
+
+                    // Unlike other places, we want to discard this character but we
+                    // still need to advance the positions properly and include the
+                    // character's position as the end point of the token
+                    self.end_position.column += 1;
+                    self.add_token(token);
+
+                    self.reset_position();
+                    State::Start
+                }
+                _ => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::QuotedIdentifier
+                }
+            }
             State::Period => match c {
                 '0'..='9' => {
                     self.stack.push('.');
@@ -267,9 +288,13 @@ impl Tokenizer {
         LexError::unexpected_character(position, c)
     }
 
-    fn reset_with(&mut self, c: char) -> Result<State, LexError> {
+    fn reset_position(&mut self) {
         self.end_position.column += 1;
         self.start_position = self.end_position;
+    }
+
+    fn reset_with(&mut self, c: char) -> Result<State, LexError> {
+        self.reset_position();
         self.state = State::Start;
 
         self.receive(c)
@@ -425,6 +450,29 @@ mod tests {
                 },
             })
         )
+    }
+
+    #[test]
+    fn quoted_identifiers() {
+        let input = "some \"quoted identifier\" \n \"and here too\"";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1,  4), T::Identifier("some".to_owned())),
+                tp((1,  5), (1,  5), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1,  6), (1, 24), T::QuotedIdentifier("quoted identifier".to_owned())),
+                tp((1, 25), (1, 25), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((1, 26), (1, 26), T::Whitespace(WS::Newline)),
+                tp((2,  1), (2,  1), T::Whitespace(WS::Inline(" ".to_owned()))),
+                tp((2,  2), (2, 15), T::QuotedIdentifier("and here too".to_owned())),
+            ])
+        );
+    }
+
+    #[test]
+    fn text() {
+        assert!(false);
     }
 
     #[test]
