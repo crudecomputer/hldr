@@ -40,6 +40,7 @@ impl fmt::Display for Number {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Symbol {
     AtSign,
+    Period,
     Underscore,
 }
 
@@ -49,6 +50,7 @@ impl fmt::Display for Symbol {
 
         Ok(match self{
             AtSign => write!(f, "@")?,
+            Period => write!(f, ".")?,
             Underscore => write!(f, "_")?,
         })
     }
@@ -142,6 +144,7 @@ impl Tokenizer {
                 }
                 '@' => {
                     self.add_token(Token::Symbol(Symbol::AtSign));
+                    self.reset_position();
                     State::Start
                 }
                 '_' => {
@@ -248,7 +251,10 @@ impl Tokenizer {
                     self.end_position.column += 1;
                     State::Float
                 }
-                _ => return Err(self.unexpected(c))
+                _ => {
+                    self.add_token(Token::Symbol(Symbol::Period));
+                    self.reset_with(c)?
+                }
             }
             State::Text => match c {
                 '\'' => {
@@ -367,12 +373,105 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::super::error::LexErrorKind;
-    use super::{Token as T, Whitespace as WS};
     use super::*;
 
-    fn tokenize(input: &str) -> Result<Vec<TokenPosition>, LexError> {
-        Ok(Tokenizer::new().tokenize(input)?.tokens)
+    mod helpers {
+        use super::super::*;
+
+        pub fn at_sign() -> Token {
+            Token::Symbol(Symbol::AtSign)
+        }
+
+        pub fn boolean(b: bool) -> Token {
+            Token::Boolean(b)
+        }
+
+        pub fn float(n: &str) -> Token {
+            Token::Number(Number::Float(n.to_owned()))
+        }
+
+        pub fn identifier(i: &str) -> Token {
+            Token::Identifier(i.to_owned())
+        }
+
+        pub fn int(n: &str) -> Token {
+            Token::Number(Number::Int(n.to_owned()))
+        }
+
+        pub fn newline() -> Token {
+            Token::Whitespace(Whitespace::Newline)
+        }
+
+        pub fn period() -> Token {
+            Token::Symbol(Symbol::Period)
+        }
+
+        pub fn quoted(i: &str) -> Token {
+            Token::QuotedIdentifier(i.to_owned())
+        }
+
+        pub fn space() -> Token {
+            spaces(1)
+        }
+
+        pub fn spaces(n: usize) -> Token {
+            Token::Whitespace(Whitespace::Inline(" ".repeat(n)))
+        }
+
+        pub fn text(t: &str) -> Token {
+            Token::Text(t.to_owned())
+        }
+
+        pub fn underscore() -> Token {
+            Token::Symbol(Symbol::Underscore)
+        }
+
+        pub fn whitespace(ws: &str) -> Token {
+            Token::Whitespace(Whitespace::Inline(ws.to_owned()))
+        }
+
+        pub fn tokenize(input: &str) -> Result<Vec<TokenPosition>, LexError> {
+            Ok(Tokenizer::new().tokenize(input)?.tokens)
+        }
+
+        #[test]
+        fn tests() {
+            assert_eq!(at_sign(), Token::Symbol(Symbol::AtSign));
+
+            assert_eq!(boolean(true), Token::Boolean(true));
+            assert_eq!(boolean(false), Token::Boolean(false));
+
+            assert_eq!(float("0.12"), Token::Number(Number::Float("0.12".to_owned())));
+            assert_eq!(float("1.23"), Token::Number(Number::Float("1.23".to_owned())));
+
+            assert_eq!(identifier("wat"), Token::Identifier("wat".to_owned()));
+            assert_eq!(identifier("hey"), Token::Identifier("hey".to_owned()));
+
+            assert_eq!(int("12"), Token::Number(Number::Int("12".to_owned())));
+            assert_eq!(int("123"), Token::Number(Number::Int("123".to_owned())));
+
+            assert_eq!(newline(), Token::Whitespace(Whitespace::Newline));
+
+            assert_eq!(period(), Token::Symbol(Symbol::Period));
+
+            assert_eq!(quoted("wat"), Token::QuotedIdentifier("wat".to_owned()));
+            assert_eq!(quoted("hey"), Token::QuotedIdentifier("hey".to_owned()));
+
+            assert_eq!(space(), Token::Whitespace(Whitespace::Inline(" ".to_owned())));
+            assert_eq!(spaces(3), Token::Whitespace(Whitespace::Inline("   ".to_owned())));
+            assert_eq!(spaces(7), Token::Whitespace(Whitespace::Inline("       ".to_owned())));
+
+            assert_eq!(text("wat"), Token::Text("wat".to_owned()));
+            assert_eq!(text("hey"), Token::Text("hey".to_owned()));
+
+            assert_eq!(underscore(), Token::Symbol(Symbol::Underscore));
+
+            assert_eq!(whitespace("   "), Token::Whitespace(Whitespace::Inline("   ".to_owned())));
+            assert_eq!(whitespace(" \t \t "), Token::Whitespace(Whitespace::Inline(" \t \t ".to_owned())));
+        }
     }
+
+    use helpers::*;
 
     fn tp(start: (usize, usize), end: (usize, usize), token: Token) -> TokenPosition {
         TokenPosition {
@@ -395,9 +494,9 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1, 1), (1,  4), T::Boolean(true)),
-                tp((1, 5), (1,  8), T::Whitespace(WS::Inline(" \t  ".to_owned()))),
-                tp((1, 9), (1, 13), T::Boolean(false)),
+                tp((1, 1), (1,  4), boolean(true)),
+                tp((1, 5), (1,  8), whitespace(" \t  ")),
+                tp((1, 9), (1, 13), boolean(false)),
             ])
         );
     }
@@ -409,14 +508,14 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  5), T::Identifier("other".to_owned())),
-                tp((1,  6), (1,  9), T::Whitespace(WS::Inline(" \t  ".to_owned()))),
-                tp((1, 10), (1, 16), T::Identifier("_things".to_owned())),
-                tp((1, 17), (1, 17), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 18), (1, 18), T::Whitespace(WS::Newline)),
+                tp((1,  1), (1,  5), identifier("other")),
+                tp((1,  6), (1,  9), whitespace(" \t  ")),
+                tp((1, 10), (1, 16), identifier("_things")),
+                tp((1, 17), (1, 17), space()),
+                tp((1, 18), (1, 18), newline()),
 
-                tp((2,  1), (2,  1), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((2,  2), (2, 26), T::Identifier("Here_that_are_Identifiers".to_owned())),
+                tp((2,  1), (2,  1), space()),
+                tp((2,  2), (2, 26), identifier("Here_that_are_Identifiers")),
             ])
         );
     }
@@ -428,11 +527,11 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  9), T::Identifier("one_thing".to_owned())),
-                tp((1, 10), (1, 10), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 11), (1, 12), T::Keyword(Keyword::As)),
-                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 14), (1, 26), T::Identifier("another_thing".to_owned())),
+                tp((1,  1), (1,  9), identifier("one_thing")),
+                tp((1, 10), (1, 10), space()),
+                tp((1, 11), (1, 12), Token::Keyword(Keyword::As)),
+                tp((1, 13), (1, 13), space()),
+                tp((1, 14), (1, 26), identifier("another_thing")),
             ])
         )
     }
@@ -444,13 +543,13 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  2), T::Number(Number::Int("12".to_owned()))),
-                tp((1,  3), (1,  3), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1,  4), (1,  6), T::Number(Number::Float("12.".to_owned()))),
-                tp((1,  7), (1,  7), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1,  8), (1, 12), T::Number(Number::Float("12.34".to_owned()))),
-                tp((1, 13), (1, 13), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 14), (1, 16), T::Number(Number::Float(".34".to_owned()))),
+                tp((1,  1), (1,  2), int("12")),
+                tp((1,  3), (1,  3), space()),
+                tp((1,  4), (1,  6), float("12.")),
+                tp((1,  7), (1,  7), space()),
+                tp((1,  8), (1, 12), float("12.34")),
+                tp((1, 13), (1, 13), space()),
+                tp((1, 14), (1, 16), float(".34")),
             ])
         );
     }
@@ -478,49 +577,50 @@ mod tests {
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  4), T::Identifier("some".to_owned())),
-                tp((1,  5), (1,  5), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1,  6), (1, 24), T::QuotedIdentifier("quoted identifier".to_owned())),
-                tp((1, 25), (1, 25), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 26), (1, 26), T::Whitespace(WS::Newline)),
-                tp((2,  1), (2,  1), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((2,  2), (2, 15), T::QuotedIdentifier("and here too".to_owned())),
+                tp((1,  1), (1,  4), identifier("some")),
+                tp((1,  5), (1,  5), space()),
+                tp((1,  6), (1, 24), quoted("quoted identifier")),
+                tp((1, 25), (1, 25), space()),
+                tp((1, 26), (1, 26), newline()),
+                tp((2,  1), (2,  1), space()),
+                tp((2,  2), (2, 15), quoted("and here too")),
             ])
         );
     }
 
     #[test]
-    fn text() {
+    fn texts() {
         let input = "identifier 'some text' \"and a quoted identifier\"";
 
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1, 10), T::Identifier("identifier".to_owned())),
-                tp((1, 11), (1, 11), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 12), (1, 22), T::Text("some text".to_owned())),
-                tp((1, 23), (1, 23), T::Whitespace(WS::Inline(" ".to_owned()))),
-                tp((1, 24), (1, 48), T::QuotedIdentifier("and a quoted identifier".to_owned())),
+                tp((1,  1), (1, 10), identifier("identifier")),
+                tp((1, 11), (1, 11), space()),
+                tp((1, 12), (1, 22), text("some text")),
+                tp((1, 23), (1, 23), space()),
+                tp((1, 24), (1, 48), quoted("and a quoted identifier")),
             ])
         );
     }
 
     #[test]
     fn symbols() {
-        // This doesn't test periods, single quotes, or double quotes because they
+        // This doesn't test single quotes or double quotes because they
         // are special cases that are part of other tokens
-        let input = "@_";
+        let input = "@._";
 
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1, 1), (1, 1), T::Symbol(Symbol::AtSign)),
-                tp((1, 1), (1, 1), T::Symbol(Symbol::Underscore)),
+                tp((1, 1), (1, 1), at_sign()),
+                tp((1, 2), (1, 2), period()),
+                tp((1, 3), (1, 3), underscore()),
             ])
         );
     }
 
-    #[test]
+    // #[test]
     fn full_syntax() {
         let input =
 "schema1
@@ -551,6 +651,30 @@ mod tests {
 
   \"quoted identifier table name\"";
 
-        Tokenizer::new().tokenize(input);
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1,  1), (1,  7), identifier("schema1")),
+                tp((1,  8), (1,  8), newline()),
+
+                tp((2,  1), (2,  2), spaces(2)),
+                tp((2,  3), (2,  8), identifier("person")),
+                tp((2,  9), (2,  9), spaces(1)),
+                tp((2, 10), (2, 11), Token::Keyword(Keyword::As)),
+                tp((2, 12), (2, 12), space()),
+                tp((2, 13), (2, 13), identifier("p")),
+                tp((2, 14), (2, 14), newline()),
+
+                tp((3,  1), (3,  4), spaces(4)),
+                tp((3,  5), (3,  5), underscore()),
+                tp((3,  6), (3,  6), newline()),
+
+                tp((4,  1), (4,  4), spaces(6)),
+                tp((4,  5), (4,  5), identifier("name")),
+                tp((4,  1), (4,  4), space()),
+                tp((4,  5), (4,  5), text("anon")),
+                tp((4,  6), (4,  6), newline()),
+            ])
+        );
     }
 }
