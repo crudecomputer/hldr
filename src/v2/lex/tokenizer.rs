@@ -148,7 +148,6 @@ impl Tokenizer {
                     State::Start
                 }
                 '_' => {
-                    self.stack.push(c);
                     State::Underscore
                 }
                 '\'' => {
@@ -271,6 +270,7 @@ impl Tokenizer {
             }
             State::Underscore => match c {
                 c if is_valid_identifier(c) => {
+                    self.stack.push('_');
                     self.stack.push(c);
                     self.end_position.column += 1;
                     State::Identifier
@@ -618,9 +618,19 @@ mod tests {
                 tp((1, 3), (1, 3), underscore()),
             ])
         );
+
+        let input = "_  ";
+
+        assert_eq!(
+            tokenize(input),
+            Ok(vec![
+                tp((1, 1), (1, 1), underscore()),
+                tp((1, 2), (1, 3), spaces(2)),
+            ])
+        );
     }
 
-    // #[test]
+    #[test]
     fn full_syntax() {
         let input =
 "schema1
@@ -630,50 +640,135 @@ mod tests {
 
     p1
       name       'person 1'
-      birthdate  '1900-01-01'
       likes_pizza true
 
   pet
-    p1
-      name     'pet 1'
+    _
+      age       13
+      weight    12.25
       person_id p@p1.id
-      species  'cat'
 
     _
-      name     'pet 2'
-      person_id p@p2.id
-      species   @p1.species
+      person_id @p1.id
 
-  things
     _
-      cost  123.456
-      units 5
+      person_id schema1.person@p1.id
 
-  \"quoted identifier table name\"";
+  \"quoted identifier\"";
+
+        let blank = |line| tp((line, 1), (line, 1), newline());
 
         assert_eq!(
             tokenize(input),
             Ok(vec![
-                tp((1,  1), (1,  7), identifier("schema1")),
-                tp((1,  8), (1,  8), newline()),
+                tp(( 1,  1), ( 1,  7), identifier("schema1")),
+                tp(( 1,  8), ( 1,  8), newline()),
 
-                tp((2,  1), (2,  2), spaces(2)),
-                tp((2,  3), (2,  8), identifier("person")),
-                tp((2,  9), (2,  9), spaces(1)),
-                tp((2, 10), (2, 11), Token::Keyword(Keyword::As)),
-                tp((2, 12), (2, 12), space()),
-                tp((2, 13), (2, 13), identifier("p")),
-                tp((2, 14), (2, 14), newline()),
+                tp(( 2,  1), ( 2,  2), spaces(2)),
+                tp(( 2,  3), ( 2,  8), identifier("person")),
+                tp(( 2,  9), ( 2,  9), space()),
+                tp(( 2, 10), ( 2, 11), Token::Keyword(Keyword::As)),
+                tp(( 2, 12), ( 2, 12), space()),
+                tp(( 2, 13), ( 2, 13), identifier("p")),
+                tp(( 2, 14), ( 2, 14), newline()),
 
-                tp((3,  1), (3,  4), spaces(4)),
-                tp((3,  5), (3,  5), underscore()),
-                tp((3,  6), (3,  6), newline()),
+                tp(( 3,  1), ( 3,  4), spaces(4)),
+                tp(( 3,  5), ( 3,  5), underscore()),
+                tp(( 3,  6), ( 3,  6), newline()),
 
-                tp((4,  1), (4,  4), spaces(6)),
-                tp((4,  5), (4,  5), identifier("name")),
-                tp((4,  1), (4,  4), space()),
-                tp((4,  5), (4,  5), text("anon")),
-                tp((4,  6), (4,  6), newline()),
+                tp(( 4,  1), ( 4,  6), spaces(6)),
+                tp(( 4,  7), ( 4, 10), identifier("name")),
+                tp(( 4, 11), ( 4, 11), space()),
+                tp(( 4, 12), ( 4, 17), text("anon")), // length includes single quotes
+                tp(( 4, 18), ( 4, 18), newline()),
+
+                blank(5),
+
+                tp(( 6,  1), ( 6,  4), spaces(4)),
+                tp(( 6,  5), ( 6,  6), identifier("p1")),
+                tp(( 6,  7), ( 6,  7), newline()),
+
+                tp(( 7,  1), ( 7,  6), spaces(6)),
+                tp(( 7,  7), ( 7, 10), identifier("name")),
+                tp(( 7, 11), ( 7, 17), spaces(7)),
+                tp(( 7, 18), ( 7, 27), text("person 1")),
+                tp(( 7, 28), ( 7, 28), newline()),
+
+                tp(( 8,  1), ( 8,  6), spaces(6)),
+                tp(( 8,  7), ( 8, 17), identifier("likes_pizza")),
+                tp(( 8, 18), ( 8, 18), space()),
+                tp(( 8, 19), ( 8, 22), boolean(true)),
+                tp(( 8, 23), ( 8, 23), newline()),
+
+                blank(9),
+
+                tp((10,  1), (10,  2), spaces(2)),
+                tp((10,  3), (10,  5), identifier("pet")),
+                tp((10,  6), (10,  6), newline()),
+
+                tp((11,  1), (11,  4), spaces(4)),
+                tp((11,  5), (11,  5), underscore()),
+                tp((11,  6), (11,  6), newline()),
+
+                tp((12,  1), (12,  6), spaces(6)),
+                tp((12,  7), (12,  9), identifier("age")),
+                tp((12, 10), (12, 16), spaces(7)),
+                tp((12, 17), (12, 18), int("13")),
+                tp((12, 19), (12, 19), newline()),
+
+                tp((13,  1), (13,  6), spaces(6)),
+                tp((13,  7), (13, 12), identifier("weight")),
+                tp((13, 13), (13, 16), spaces(4)),
+                tp((13, 17), (13, 21), float("12.25")),
+                tp((13, 22), (13, 22), newline()),
+
+                tp((14,  1), (14,  6), spaces(6)),
+                tp((14,  7), (14, 15), identifier("person_id")),
+                tp((14, 16), (14, 16), space()),
+                tp((14, 17), (14, 17), identifier("p")),
+                tp((14, 18), (14, 18), at_sign()),
+                tp((14, 19), (14, 20), identifier("p1")),
+                tp((14, 21), (14, 21), period()),
+                tp((14, 22), (14, 23), identifier("id")),
+                tp((14, 24), (14, 24), newline()),
+
+                blank(15),
+
+                tp((16,  1), (16,  4), spaces(4)),
+                tp((16,  5), (16,  5), underscore()),
+                tp((16,  6), (16,  6), newline()),
+
+                tp((17,  1), (17,  6), spaces(6)),
+                tp((17,  7), (17, 15), identifier("person_id")),
+                tp((17, 16), (17, 16), space()),
+                tp((17, 17), (17, 17), at_sign()),
+                tp((17, 18), (17, 19), identifier("p1")),
+                tp((17, 20), (17, 20), period()),
+                tp((17, 21), (17, 22), identifier("id")),
+                tp((17, 23), (17, 23), newline()),
+
+                blank(18),
+
+                tp((19,  1), (19,  4), spaces(4)),
+                tp((19,  5), (19,  5), underscore()),
+                tp((19,  6), (19,  6), newline()),
+
+                tp((20,  1), (20,  6), spaces(6)),
+                tp((20,  7), (20, 15), identifier("person_id")),
+                tp((20, 16), (20, 16), space()),
+                tp((20, 17), (20, 23), identifier("schema1")),
+                tp((20, 24), (20, 24), period()),
+                tp((20, 25), (20, 30), identifier("person")),
+                tp((20, 31), (20, 31), at_sign()),
+                tp((20, 32), (20, 33), identifier("p1")),
+                tp((20, 34), (20, 34), period()),
+                tp((20, 35), (20, 36), identifier("id")),
+                tp((20, 37), (20, 37), newline()),
+
+                blank(21),
+
+                tp((22,  1), (22,  2), spaces(2)),
+                tp((22,  3), (22, 21), quoted("quoted identifier")),
             ])
         );
     }
