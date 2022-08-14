@@ -2,6 +2,8 @@ use std::fmt;
 
 use super::{error::LexError, Position};
 
+const NULL: char = '\0';
+
 /// Set of all keyword tokens
 #[derive(Clone, Debug, PartialEq)]
 pub enum Keyword {
@@ -78,6 +80,7 @@ impl fmt::Display for Whitespace {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Boolean(bool),
+    Comment(String),
     Identifier(String),
     Keyword(Keyword),
     Number(Number),
@@ -97,12 +100,14 @@ pub struct TokenPosition {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    Start,
+    Comment,
+    Dash,
     Float,
     Identifier,
     Integer,
     QuotedIdentifier,
     Period,
+    Start,
     Text,
     Underscore,
     Whitespace,
@@ -139,13 +144,17 @@ impl Tokenizer {
     fn receive(&mut self, c: char) -> Result<State, LexError> {
         Ok(match self.state {
             State::Start => match c {
-                '\0' => {
+                NULL => {
                     State::Start
                 }
                 '@' => {
                     self.add_token(Token::Symbol(Symbol::AtSign));
                     self.reset_position();
                     State::Start
+                }
+                '-' => {
+                    self.end_position.column += 1;
+                    State::Dash
                 }
                 '_' => {
                     State::Underscore
@@ -180,6 +189,31 @@ impl Tokenizer {
                     self.stack.push(c);
                     State::Identifier
                 }
+                _ => return Err(self.unexpected(c))
+            }
+            State::Comment => match c {
+                NULL => {
+                    let stack = self.drain_stack();
+                    let token = Token::Comment(stack);
+
+                    self.add_token(token);
+                    self.reset_with(c)?
+                }
+                _ if is_newline(c) => {
+                    let stack = self.drain_stack();
+                    let token = Token::Comment(stack);
+
+                    self.add_token(token);
+                    self.reset_with(c)?
+                }
+                _ => {
+                    self.stack.push(c);
+                    self.end_position.column += 1;
+                    State::Comment
+                }
+            }
+            State::Dash => match c {
+                '-' => State::Comment,
                 _ => return Err(self.unexpected(c))
             }
             State::Float => match c {
@@ -336,7 +370,7 @@ impl Tokenizer {
 
         // An 'escape hatch' to make sure the last state/stack are processed
         // if not ending back at the 'start' state
-        self.receive('\0')?;
+        self.state = self.receive(NULL)?;
 
         Ok(self)
     }
@@ -384,6 +418,10 @@ mod tests {
 
         pub fn boolean(b: bool) -> Token {
             Token::Boolean(b)
+        }
+
+        pub fn comment(c: &str) -> Token {
+            Token::Comment(c.to_owned())
         }
 
         pub fn float(n: &str) -> Token {
@@ -435,11 +473,14 @@ mod tests {
         }
 
         #[test]
-        fn tests() {
+        fn helpers_tests() {
             assert_eq!(at_sign(), Token::Symbol(Symbol::AtSign));
 
             assert_eq!(boolean(true), Token::Boolean(true));
             assert_eq!(boolean(false), Token::Boolean(false));
+
+            assert_eq!(comment("some comment"), Token::Comment("some comment".to_owned()));
+            assert_eq!(comment("another comment"), Token::Comment("another comment".to_owned()));
 
             assert_eq!(float("0.12"), Token::Number(Number::Float("0.12".to_owned())));
             assert_eq!(float("1.23"), Token::Number(Number::Float("1.23".to_owned())));
@@ -654,7 +695,9 @@ mod tests {
     _
       person_id schema1.person@p1.id
 
-  \"quoted identifier\"";
+  \"quoted identifier\" -- and a comment
+
+-- and another comment";
 
         let blank = |line| tp((line, 1), (line, 1), newline());
 
@@ -769,6 +812,13 @@ mod tests {
 
                 tp((22,  1), (22,  2), spaces(2)),
                 tp((22,  3), (22, 21), quoted("quoted identifier")),
+                tp((22, 22), (22, 22), space()),
+                tp((22, 23), (22, 38), comment(" and a comment")),
+                tp((22, 39), (22, 39), newline()),
+
+                blank(23),
+
+                tp((24,  1), (24, 22), comment(" and another comment")),
             ])
         );
     }
