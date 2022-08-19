@@ -2,9 +2,11 @@ use std::{error::Error, fmt};
 
 use crate::v2::lex::{Position, Token, Whitespace};
 
-/*
 #[derive(Debug, PartialEq)]
 pub enum ParseErrorKind {
+    UnexpectedToken(Token),
+
+    /*
     IncompleteReference(String),
     InconsistentIndent { unit: String, received: String },
     MissingColumnValue,
@@ -12,22 +14,28 @@ pub enum ParseErrorKind {
     MissingSchema,
     MissingTable,
     UnexpectedIndentLevel(usize),
-    UnexpectedToken(Token),
 
     // These should only happen from a bug in the lexer or
     // if indent tokens are manually created
     EmptyIndent,
     InvalidIndent(String),
+    */
 }
-*/
 
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
+    pub kind: ParseErrorKind,
     pub position: Position,
-    // pub kind: ParseErrorKind,
 }
 
 impl ParseError {
+    pub fn unexpected_token(t: Token, position: Position) -> Self {
+        Self {
+            kind: ParseErrorKind::UnexpectedToken(t),
+            position,
+        }
+    }
+
     /*
     pub fn empty_indent(line: usize) -> Self {
         Self {
@@ -92,12 +100,6 @@ impl ParseError {
         }
     }
 
-    pub fn unexpected_token(line: usize, t: Token) -> Self {
-        Self {
-            kind: ParseErrorKind::UnexpectedToken(t),
-            line,
-        }
-    }
     */
 }
 

@@ -12,6 +12,7 @@ use crate::v2::lex::{
 pub enum State {
     LineStart,
     SchemaName(String),
+    Schema(String),
 
     /*
     CreatedSchema,
@@ -100,12 +101,30 @@ impl Parser {
                 }
                 _ => return Err(unexpected(tp))
             }
+
             State::SchemaName(name) => match tp.token {
+                Token::Whitespace(Whitespace::Newline) => {
+                    State::Schema(name)
+                }
                 Token::Whitespace(Whitespace::Inline(_)) => {
+                    State::SchemaName(name)
+                }
+                Token::Comment(_) => {
                     State::SchemaName(name)
                 }
                 _ => return Err(unexpected(tp))
             }
+
+            State::Schema(name) => match tp.token {
+                Token::Whitespace(Whitespace::Newline) => {
+                    State::Schema(name)
+                }
+                Token::Identifier(i) | Token::QuotedIdentifier(i) => {
+                    State::SchemaName(i)
+                }
+                _ => return Err(unexpected(tp))
+            }
+
             _ => panic!("state")
         })
             
@@ -417,9 +436,7 @@ impl Parser {
 }
 
 fn unexpected(tp: TokenPosition) -> ParseError {
-    ParseError {
-        position: tp.start_position,
-    }
+    ParseError::unexpected_token(tp.token, tp.start_position)
 }
 
 fn indent_level(unit: &str, indent: &str) -> Option<usize> {
@@ -468,10 +485,10 @@ mod tests {
     #[test]
     fn empty_schemas() {
         let input =
-"--this is a comment
+"-- comment
 schema1
 
-schema2";
+schema2 -- comment";
 
         assert_eq!(parse(input), Ok(Vec::new()));
     }
