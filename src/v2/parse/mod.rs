@@ -1,82 +1,14 @@
+pub mod element;
 pub mod error;
 mod parser;
 
-use super::lex::Token;
+use super::lex::{Token, TokenPosition};
+pub use element::*;
 pub use error::{ParseError, /* ParseErrorKind */};
 use parser::Parser;
 
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ReferenceValue {
-    pub schema: String,
-    pub table: String,
-    pub record: String,
-    pub column: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Value {
-    Boolean(bool),
-    Number(String),
-    Text(String),
-    Reference(Box<ReferenceValue>)
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Attribute {
-    pub name: String,
-    pub value: Value,
-}
-
-#[derive(Debug, Default, PartialEq)]
-pub struct Record {
-    pub name: Option<String>,
-    pub attributes: Vec<Attribute>,
-}
-
-impl Record {
-    pub fn new(name: Option<String>) -> Self {
-        Self {
-            name,
-            attributes: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Default, PartialEq)]
-pub struct Table {
-    pub alias: Option<String>,
-    pub name: String,
-    pub records: Vec<Record>,
-}
-
-impl Table {
-    pub fn new(name: String) -> Self {
-        Self {
-            alias: None,
-            name,
-            records: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Schema {
-    pub name: String,
-    pub tables: Vec<Table>,
-}
-
-impl Schema {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            tables: Vec::new(),
-        }
-    }
-}
-
-pub fn parse(tokens: Vec<Token>) -> Result<Vec<Schema>, ParseError> {
-    Ok(Parser::new().parse(tokens)?.schemas)
+pub fn parse(tokens: Vec<TokenPosition>) -> Result<Vec<Element>, ParseError> {
+    Ok(Parser::new().parse(tokens)?.elements)
 }
 
 /*
