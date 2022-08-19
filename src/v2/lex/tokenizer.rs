@@ -93,9 +93,9 @@ pub enum Token {
 /// A token with its position
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenPosition {
-    token: Token,
-    start_position: Position,
-    end_position: Position,
+    pub token: Token,
+    pub start_position: Position,
+    pub end_position: Position,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -115,7 +115,6 @@ pub enum State {
 
 #[derive(Debug)]
 pub(super) struct Tokenizer {
-    state: State,
     stack: Vec<char>,
     start_position: Position,
     end_position: Position,
@@ -127,22 +126,27 @@ impl Tokenizer {
         Self {
             start_position: Position { line: 1, column: 1 },
             end_position: Position { line: 1, column: 1 },
-            state: State::Start,
             stack: Vec::new(),
             tokens: Vec::new(),
         }
     }
 
-    fn add_token(&mut self, token: Token) {
-        self.tokens.push(TokenPosition {
-            token,
-            start_position: self.start_position,
-            end_position: self.end_position,
-        })
+    pub fn tokenize(mut self, input: &str) -> Result<Self, LexError> {
+        let mut state = State::Start;
+
+        for c in input.chars() {
+            state = self.receive(state, c)?;
+        }
+
+        // An 'escape hatch' to make sure the last state/stack are processed
+        // if not ending back at the 'start' state
+        self.receive(state, NULL)?;
+
+        Ok(self)
     }
 
-    fn receive(&mut self, c: char) -> Result<State, LexError> {
-        Ok(match self.state {
+    fn receive(&mut self, state: State, c: char) -> Result<State, LexError> {
+        Ok(match state {
             State::Start => match c {
                 NULL => {
                     State::Start
@@ -331,11 +335,12 @@ impl Tokenizer {
         })
     }
 
-    fn unexpected(&self, c: char) -> LexError {
-        let mut position = self.end_position;
-
-        position.column += 1;
-        LexError::unexpected_character(position, c)
+    fn add_token(&mut self, token: Token) {
+        self.tokens.push(TokenPosition {
+            token,
+            start_position: self.start_position,
+            end_position: self.end_position,
+        })
     }
 
     /// Useful for adding a token when a character is encountered that needs
@@ -347,6 +352,10 @@ impl Tokenizer {
         State::Start
     }
 
+    fn drain_stack(&mut self) -> String {
+        self.stack.drain(..).collect()
+    }
+
     fn reset_position(&mut self) {
         self.end_position.column += 1;
         self.start_position = self.end_position;
@@ -354,25 +363,14 @@ impl Tokenizer {
 
     fn reset_with(&mut self, c: char) -> Result<State, LexError> {
         self.reset_position();
-        self.state = State::Start;
-
-        self.receive(c)
+        self.receive(State::Start, c)
     }
 
-    fn drain_stack(&mut self) -> String {
-        self.stack.drain(..).collect()
-    }
+    fn unexpected(&self, c: char) -> LexError {
+        let mut position = self.end_position;
 
-    pub fn tokenize(mut self, input: &str) -> Result<Self, LexError> {
-        for c in input.chars() {
-            self.state = self.receive(c)?;
-        }
-
-        // An 'escape hatch' to make sure the last state/stack are processed
-        // if not ending back at the 'start' state
-        self.state = self.receive(NULL)?;
-
-        Ok(self)
+        position.column += 1;
+        LexError::unexpected_character(position, c)
     }
 }
 
