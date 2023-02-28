@@ -10,7 +10,7 @@ use crate::v2::lex::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    LineStart,
+    Root,
     SchemaName(String),
     Schema(String),
 
@@ -84,12 +84,12 @@ impl Parser {
 
     fn receive(&mut self, state: State, tp: TokenPosition) -> Result<State, ParseError> {
         Ok(match state {
-            State::LineStart => match tp.token {
+            State::Root => match tp.token {
                 Token::Comment(_) => {
-                    State::LineStart
+                    State::Root
                 }
                 Token::Whitespace(Whitespace::Newline) => {
-                    State::LineStart
+                    State::Root
                 }
                 /*
                 Token::Whitespace(Whitespace::Inline(i)) => {
@@ -129,7 +129,7 @@ impl Parser {
         })
             
             /*
-            LineStart => match token {
+            Root => match token {
                 Token::Whitespace(Whitespace::Newline) => {
                     line += 1;
                     LineStart
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn blank() {
-        assert_eq!(parse(""), Ok(Vec::new()));
+        assert_eq!(parse("").unwrap(), Vec::new());
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
 
 -- and another comment";
 
-        assert_eq!(parse(input), Ok(Vec::new()));
+        assert_eq!(parse(input).unwrap(), Vec::new());
     }
 
     #[test]
@@ -490,7 +490,20 @@ schema1
 
 schema2 -- comment";
 
-        assert_eq!(parse(input), Ok(Vec::new()));
+        assert_eq!(parse(input).unwrap(), Vec::new());
+    }
+
+    #[test]
+    fn schemas_with_tables() {
+        let input =
+"-- comment
+schema1
+  table1
+
+schema2 -- comment
+  table2 -- comment";
+
+        assert_eq!(parse(input).unwrap(), Vec::new());
     }
 
     /*
