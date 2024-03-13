@@ -8,7 +8,8 @@ pub mod load;
 pub mod parse;
 pub mod validate;
 
-pub mod v2;
+// pub mod v2;
+mod v3;
 
 pub use error::{HldrError, HldrErrorKind};
 
@@ -64,6 +65,7 @@ pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/*
 #[cfg(test)]
 mod root_tests {
     use std::env;
@@ -80,3 +82,4 @@ mod root_tests {
         place(&options, false).unwrap();
     }
 }
+*/

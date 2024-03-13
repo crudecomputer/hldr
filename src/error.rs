@@ -16,8 +16,8 @@ pub enum HldrErrorKind {
 
 #[derive(Debug)]
 pub struct HldrError {
-    kind: HldrErrorKind,
-    error: Box<dyn Error>,
+    pub kind: HldrErrorKind,
+    pub error: Box<dyn Error>,
 }
 
 impl From<lex::LexError> for HldrError {
