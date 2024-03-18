@@ -8,7 +8,6 @@ pub mod load;
 pub mod parse;
 pub mod validate;
 
-// pub mod v2;
 mod v3;
 
 pub use error::{HldrError, HldrErrorKind};
