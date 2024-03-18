@@ -243,6 +243,7 @@ impl Tokenizer {
                                 ' ' | '\t' => State::Whitespace,
                                 '@' => {
                                     self.tokens.push(Token::AtSign);
+                                    // FIXME lexing shouldn't "expect"
                                     State::ExpectingIdentifier
                                 },
                                 '.' => {
