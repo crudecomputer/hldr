@@ -116,4 +116,50 @@ mod tests {
             assert_eq!(tokenize(input.chars()), Err(LexError::unexpected('_')));
         }
     }
+
+    #[test]
+    fn test_text() {
+        let input = "'this is text'  'and this is too, isn''t that cool?'";
+        assert_eq!(tokenize(input.chars()), Ok(vec![
+            Token::Text("this is text".to_string()),
+            Token::Whitespace("  ".to_string()),
+            Token::Text("and this is too, isn't that cool?".to_string()),
+        ]));
+    }
+
+    #[test]
+    fn test_underscores() {
+        let input = "_ _ _one two_";
+        assert_eq!(tokenize(input.chars()), Ok(vec![
+            Token::Symbol(Symbol::Underscore),
+            Token::Whitespace(" ".to_string()),
+            Token::Symbol(Symbol::Underscore),
+            Token::Whitespace(" ".to_string()),
+            Token::Identifier("_one".to_string()),
+            Token::Whitespace(" ".to_string()),
+            Token::Identifier("two_".to_string()),
+        ]));
+    }
+
+    #[test]
+    fn test_other_symbols() {
+        let input = ". one. .two # three# #four";
+        assert_eq!(tokenize(input.chars()), Ok(vec![
+            Token::Symbol(Symbol::Period),
+            Token::Whitespace(" ".to_string()),
+            Token::Identifier("one".to_string()),
+            Token::Symbol(Symbol::Period),
+            Token::Whitespace(" ".to_string()),
+            Token::Symbol(Symbol::Period),
+            Token::Identifier("two".to_string()),
+            Token::Whitespace(" ".to_string()),
+            Token::Symbol(Symbol::Hash),
+            Token::Whitespace(" ".to_string()),
+            Token::Identifier("three".to_string()),
+            Token::Symbol(Symbol::Hash),
+            Token::Whitespace(" ".to_string()),
+            Token::Symbol(Symbol::Hash),
+            Token::Identifier("four".to_string()),
+        ]));
+    }
 }

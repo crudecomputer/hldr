@@ -4,12 +4,20 @@ pub enum Keyword {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Symbol {
+    Hash,
+    Period,
+    Underscore,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Bool(bool),
-    Keyword(Keyword),
     Identifier(String),
+    Keyword(Keyword),
     Newline,
     Number(String),
-    Underscore,
+    Symbol(Symbol),
+    Text(String),
     Whitespace(String),
 }

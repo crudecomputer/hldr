@@ -52,11 +52,20 @@ impl State for Start {
             '\r' => {
                 Ok(Box::new(AfterCarriageReturn))
             }
+            '#' => {
+                ctx.tokens.push(Token::Symbol(Symbol::Hash));
+                Ok(Box::new(Start))
+            }
+            '.' => {
+                Ok(Box::new(AfterPeriod))
+            }
             '-' => {
                 Ok(Box::new(AfterSingleDash))
             }
-            '0'..='9' | '.' => {
-                // Allow InInteger to add decimal point to the stack and transition to InFloat
+            '\'' => {
+                Ok(Box::new(InText))
+            }
+            '0'..='9' => {
                 InInteger.receive(ctx, c)
             }
             _ if is_identifier_char(c) => {
@@ -80,6 +89,24 @@ impl State for AfterCarriageReturn {
         match c {
             '\n' => Ok(Box::new(Start)),
             _ => Start.receive(ctx, c),
+        }
+    }
+}
+
+/// State after receiving a period without preceding digits.
+struct AfterPeriod;
+
+impl State for AfterPeriod {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '0'..='9' => {
+                ctx.stack.push('.');
+                InFloat.receive(ctx, c)
+            }
+            _ => {
+                ctx.tokens.push(Token::Symbol(Symbol::Period));
+                Start.receive(ctx, c)
+            }
         }
     }
 }
@@ -222,6 +249,44 @@ impl State for InInteger {
     }
 }
 
+/// State after receiving what might be a closing quote unless the next
+/// character received is another single quote, which indicates the previous
+/// quote was being escaped and is part of the text string.
+struct AfterText;
+
+impl State for AfterText {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '\'' => {
+                ctx.stack.push(c);
+                Ok(Box::new(InText))
+            }
+            _ if self.can_terminate(c) => {
+                let stack = ctx.drain_stack();
+                ctx.tokens.push(Token::Text(stack));
+                Start.receive(ctx, c)
+            }
+            _ => Err(LexError::unexpected(c)),
+        }
+    }
+}
+
+/// State after receiving a single quote and inside a string literal.
+struct InText;
+
+impl State for InText {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '\'' => Ok(Box::new(AfterText)),
+            // TODO: What about newlines?
+            _ => {
+                ctx.stack.push(c);
+                Ok(Box::new(InText))
+            }
+        }
+    }
+}
+
 /// State after receiving whitespace
 struct InWhitespace;
 
@@ -243,7 +308,7 @@ impl State for InWhitespace {
 
 fn identifier_to_token(s: String) -> Token {
     match s.as_ref() {
-        "_" => Token::Underscore,
+        "_" => Token::Symbol(Symbol::Underscore),
         "true" | "t" => Token::Bool(true),
         "false" | "f" => Token::Bool(false),
         "as" => Token::Keyword(Keyword::As),
