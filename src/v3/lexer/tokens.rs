@@ -17,6 +17,7 @@ pub enum Token {
     Keyword(Keyword),
     Newline,
     Number(String),
+    QuotedIdentifier(String),
     Symbol(Symbol),
     Text(String),
     Whitespace(String),

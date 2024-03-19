@@ -94,6 +94,17 @@ mod tests {
     }
 
     #[test]
+    fn test_quoted_identifiers() {
+        let input = "\"this is an identifier\" \"and so
+        is this\"";
+        assert_eq!(tokenize(input.chars()), Ok(vec![
+            Token::QuotedIdentifier("this is an identifier".to_string()),
+            Token::Whitespace(" ".to_string()),
+            Token::QuotedIdentifier("and so\n        is this".to_string()),
+        ]));
+    }
+
+    #[test]
     fn test_numbers() {
         for num in [
             "0", "0.", ".0",
@@ -119,11 +130,14 @@ mod tests {
 
     #[test]
     fn test_text() {
-        let input = "'this is text'  'and this is too, isn''t that cool?'";
+        let input = "'this is text'  'and this is too, isn''t that cool?' 'and
+        this!'";
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Text("this is text".to_string()),
             Token::Whitespace("  ".to_string()),
             Token::Text("and this is too, isn't that cool?".to_string()),
+            Token::Whitespace(" ".to_string()),
+            Token::Text("and\n        this!".to_string()),
         ]));
     }
 

@@ -1,3 +1,4 @@
+
 use super::errors::*;
 use super::tokens::*;
 
@@ -65,6 +66,9 @@ impl State for Start {
             '\'' => {
                 Ok(Box::new(InText))
             }
+            '"' => {
+                Ok(Box::new(InQuotedIdentifier))
+            }
             '0'..='9' => {
                 InInteger.receive(ctx, c)
             }
@@ -121,6 +125,49 @@ impl State for AfterSingleDash {
             '0'..='9' | '.' => {
                 ctx.stack.push('-');
                 InInteger.receive(ctx, c)
+            }
+            _ => Err(LexError::unexpected(c)),
+        }
+    }
+}
+
+/// State after receiving what might be a closing double-quote unless the next
+/// character received is another double-quote, which indicates the previous
+/// quote was being escaped and is part of the quoted identifier.
+struct AfterQuotedIdentifier;
+
+impl State for AfterQuotedIdentifier {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '"' => {
+                ctx.stack.push(c);
+                Ok(Box::new(InQuotedIdentifier))
+            }
+            _ => {
+                let stack = ctx.drain_stack();
+                ctx.tokens.push(Token::QuotedIdentifier(stack));
+                Start.receive(ctx, c)
+            }
+        }
+    }
+}
+
+/// State after receiving what might be a closing quote unless the next
+/// character received is another single quote, which indicates the previous
+/// quote was being escaped and is part of the text string.
+struct AfterText;
+
+impl State for AfterText {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '\'' => {
+                ctx.stack.push(c);
+                Ok(Box::new(InText))
+            }
+            _ if self.can_terminate(c) => {
+                let stack = ctx.drain_stack();
+                ctx.tokens.push(Token::Text(stack));
+                Start.receive(ctx, c)
             }
             _ => Err(LexError::unexpected(c)),
         }
@@ -249,24 +296,17 @@ impl State for InInteger {
     }
 }
 
-/// State after receiving what might be a closing quote unless the next
-/// character received is another single quote, which indicates the previous
-/// quote was being escaped and is part of the text string.
-struct AfterText;
+/// State after receiving a valid identifier character.
+struct InQuotedIdentifier;
 
-impl State for AfterText {
+impl State for InQuotedIdentifier {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\'' => {
+            '"' => Ok(Box::new(AfterQuotedIdentifier)),
+            _ => {
                 ctx.stack.push(c);
-                Ok(Box::new(InText))
+                Ok(Box::new(InQuotedIdentifier))
             }
-            _ if self.can_terminate(c) => {
-                let stack = ctx.drain_stack();
-                ctx.tokens.push(Token::Text(stack));
-                Start.receive(ctx, c)
-            }
-            _ => Err(LexError::unexpected(c)),
         }
     }
 }
@@ -278,7 +318,6 @@ impl State for InText {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
             '\'' => Ok(Box::new(AfterText)),
-            // TODO: What about newlines?
             _ => {
                 ctx.stack.push(c);
                 Ok(Box::new(InText))
