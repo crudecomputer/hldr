@@ -1,11 +1,16 @@
 #[derive(Debug, PartialEq)]
 pub enum Keyword {
     As,
+    Schema,
+    Table,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Symbol {
-    Hash,
+    AtSign,
+    Comma,
+    ParenLeft,
+    ParenRight,
     Period,
     Underscore,
 }
@@ -15,10 +20,9 @@ pub enum Token {
     Bool(bool),
     Identifier(String),
     Keyword(Keyword),
-    Newline,
+    LineSep,
     Number(String),
     QuotedIdentifier(String),
     Symbol(Symbol),
     Text(String),
-    Whitespace(String),
 }

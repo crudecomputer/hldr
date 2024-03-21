@@ -4,6 +4,7 @@ pub enum LexErrorKind {
     // ExpectedNumber,
     // UnclosedQuotedIdentifier,
     // UnclosedString,
+    UnexpectedEOF,
     UnexpectedCharacter(char),
 }
 
@@ -16,5 +17,9 @@ pub struct LexError {
 impl LexError {
     pub fn unexpected(c: char /*, position: Position */) -> Self {
         Self { kind: LexErrorKind::UnexpectedCharacter(c)}
+    }
+
+    pub fn unexpected_eof(/*, position: Position */) -> Self {
+        Self { kind: LexErrorKind::UnexpectedEOF }
     }
 }

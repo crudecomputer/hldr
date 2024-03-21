@@ -1,3 +1,7 @@
+// TODO:
+//  - Add positions to tokens (per v2 tokenizer)
+//  - Add positions to errors
+//  - Better errors
 
 use super::errors::*;
 use super::tokens::*;
@@ -31,9 +35,10 @@ pub trait State {
     /// Receives a character and returns the next state.
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult;
 
-    /// Returns whether or not the given character can successfully terminate the current state.
-    fn can_terminate(&self, _c: char) -> bool {
-        true
+    /// Returns whether or not the given character can successfully terminate the current state,
+    /// defaulting to only allowing whitespace, newlines, or EOF to terminate.
+    fn can_terminate(&self, c: char) -> bool {
+        is_whitespace(c) || [EOF, '\r', '\n'].contains(&c)
     }
 }
 
@@ -43,18 +48,26 @@ pub struct Start;
 impl State for Start {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            NULL => {
+            NULL | EOF => {
                 Ok(Box::new(Start))
             }
-            '\n' => {
-                ctx.tokens.push(Token::Newline);
+            '\r' | '\n' => {
+                Ok(Box::new(AfterReturn))
+            }
+            '(' => {
+                ctx.tokens.push(Token::Symbol(Symbol::ParenLeft));
                 Ok(Box::new(Start))
             }
-            '\r' => {
-                Ok(Box::new(AfterCarriageReturn))
+            ')' => {
+                ctx.tokens.push(Token::Symbol(Symbol::ParenRight));
+                Ok(Box::new(Start))
             }
-            '#' => {
-                ctx.tokens.push(Token::Symbol(Symbol::Hash));
+            '@' => {
+                ctx.tokens.push(Token::Symbol(Symbol::AtSign));
+                Ok(Box::new(Start))
+            }
+            ',' => {
+                ctx.tokens.push(Token::Symbol(Symbol::Comma));
                 Ok(Box::new(Start))
             }
             '.' => {
@@ -76,23 +89,9 @@ impl State for Start {
                 InIdentifier.receive(ctx, c)
             }
             _ if is_whitespace(c) => {
-                InWhitespace.receive(ctx, c)
+                Ok(Box::new(Start))
             }
             _ => Err(LexError::unexpected(c)),
-        }
-    }
-}
-
-/// State after receiving a carriage return.
-struct AfterCarriageReturn;
-
-impl State for AfterCarriageReturn {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
-        ctx.tokens.push(Token::Newline);
-        
-        match c {
-            '\n' => Ok(Box::new(Start)),
-            _ => Start.receive(ctx, c),
         }
     }
 }
@@ -107,8 +106,31 @@ impl State for AfterPeriod {
                 ctx.stack.push('.');
                 InFloat.receive(ctx, c)
             }
-            _ => {
+            _ if self.can_terminate(c) => {
                 ctx.tokens.push(Token::Symbol(Symbol::Period));
+                Start.receive(ctx, c)
+            }
+            _ => Err(LexError::unexpected(c)),
+        }
+    }
+
+    fn can_terminate(&self, c: char) -> bool {
+        // Outside of float tokens (which this state does not generate)
+        // periods are only used in references, meaning they should only
+        // be followed by a plain or quoted identifier
+        is_identifier_char(c) || c == '"'
+    }
+}
+
+/// State after receiving a carriage return or newline.
+struct AfterReturn;
+
+impl State for AfterReturn {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+        match c {
+            '\r' | '\n' => Ok(Box::new(AfterReturn)),
+            _ => {
+                ctx.tokens.push(Token::LineSep);
                 Start.receive(ctx, c)
             }
         }
@@ -164,12 +186,11 @@ impl State for AfterText {
                 ctx.stack.push(c);
                 Ok(Box::new(InText))
             }
-            _ if self.can_terminate(c) => {
+            _ => {
                 let stack = ctx.drain_stack();
                 ctx.tokens.push(Token::Text(stack));
                 Start.receive(ctx, c)
             }
-            _ => Err(LexError::unexpected(c)),
         }
     }
 }
@@ -180,13 +201,7 @@ struct InComment;
 impl State for InComment {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\n' => {
-                ctx.tokens.push(Token::Newline);
-                Ok(Box::new(Start))
-            }
-            '\r' => {
-                Ok(Box::new(AfterCarriageReturn))
-            }
+            '\r' | '\n' => Ok(Box::new(AfterReturn)),
             _ => Ok(Box::new(InComment)),
         }
     }
@@ -225,10 +240,6 @@ impl State for InFloat {
             _ => Err(LexError::unexpected(c)),
         }
     }
-
-    fn can_terminate(&self, _c: char) -> bool {
-        true // TODO: Only whitespace, newlines, and null byte?
-    }
 }
 
 /// State after receiving a valid identifier character.
@@ -241,18 +252,13 @@ impl State for InIdentifier {
                 ctx.stack.push(c);
                 Ok(Box::new(InIdentifier))
             }
-            _ if self.can_terminate(c) => {
+            _ => {
                 let stack = ctx.drain_stack();
                 let token = identifier_to_token(stack);
                 ctx.tokens.push(token);
                 Start.receive(ctx, c)
             }
-            _ => Err(LexError::unexpected(c)),
         }
-    }
-
-    fn can_terminate(&self, _c: char) -> bool {
-        true // TODO: Only whitespace, newlines, and null byte?
     }
 }
 
@@ -290,10 +296,6 @@ impl State for InInteger {
             _ => Err(LexError::unexpected(c)),
         }
     }
-
-    fn can_terminate(&self, _c: char) -> bool {
-        true // TODO: Only whitespace, newlines, and null byte?
-    }
 }
 
 /// State after receiving a valid identifier character.
@@ -326,31 +328,14 @@ impl State for InText {
     }
 }
 
-/// State after receiving whitespace
-struct InWhitespace;
-
-impl State for InWhitespace {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
-        match c {
-            c if is_whitespace(c) => {
-                ctx.stack.push(c);
-                Ok(Box::new(InWhitespace))
-            }
-            _ => {
-                let stack = ctx.drain_stack();
-                ctx.tokens.push(Token::Whitespace(stack));
-                Start.receive(ctx, c)
-            }
-        }
-    }
-}
-
 fn identifier_to_token(s: String) -> Token {
     match s.as_ref() {
         "_" => Token::Symbol(Symbol::Underscore),
         "true" | "t" => Token::Bool(true),
         "false" | "f" => Token::Bool(false),
         "as" => Token::Keyword(Keyword::As),
+        "schema" => Token::Keyword(Keyword::Schema),
+        "table" => Token::Keyword(Keyword::Table),
         _ => Token::Identifier(s),
     }
 }

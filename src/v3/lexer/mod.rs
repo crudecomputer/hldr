@@ -2,8 +2,8 @@ mod errors;
 mod states;
 mod tokens;
 
-use errors::*;
-use tokens::*;
+pub use errors::*;
+pub use tokens::{Keyword, Symbol, Token};
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
     let mut context = states::Context::default();
@@ -13,7 +13,10 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
         state = state.receive(&mut context, c)?;
     }
 
-    state.receive(&mut context, states::EOF)?;
+    if let Err(_) = state.receive(&mut context, states::EOF) {
+        return Err(LexError::unexpected_eof());
+    }
+
     Ok(context.into_tokens())
 }
 
@@ -30,20 +33,14 @@ mod tests {
     #[test]
     fn test_null_input() {
         let input = format!("{}\t{}", NULL, NULL);
-        assert_eq!(tokenize(input.chars()), Ok(vec![
-            Token::Whitespace("\t".to_string()),
-        ]));
+        assert_eq!(tokenize(input.chars()), Ok(Vec::new()));
     }
 
     #[test]
     fn test_input_with_newlines() {
-        // "\r\n" should be treated as a single newline per Unicode spec
         let input = "\n\r\r\n\n";
         assert_eq!(tokenize(input.chars()), Ok(vec![
-            Token::Newline,
-            Token::Newline,
-            Token::Newline,
-            Token::Newline,
+            Token::LineSep,
         ]));
     }
 
@@ -51,8 +48,8 @@ mod tests {
     fn test_comment_and_newlines() {
         let input = "\n-- this is -- a comment\r\n";
         assert_eq!(tokenize(input.chars()), Ok(vec![
-            Token::Newline,
-            Token::Newline,
+            Token::LineSep,
+            Token::LineSep,
         ]));
     }
 
@@ -69,11 +66,8 @@ mod tests {
         let input = "true t false f";
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Bool(true),
-            Token::Whitespace(" ".to_string()),
             Token::Bool(true),
-            Token::Whitespace(" ".to_string()),
             Token::Bool(false),
-            Token::Whitespace(" ".to_string()),
             Token::Bool(false),
         ]));
     }
@@ -99,7 +93,6 @@ mod tests {
         is this\"";
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::QuotedIdentifier("this is an identifier".to_string()),
-            Token::Whitespace(" ".to_string()),
             Token::QuotedIdentifier("and so\n        is this".to_string()),
         ]));
     }
@@ -120,10 +113,10 @@ mod tests {
 
     #[test]
     fn test_malformed_numbers() {
-        for input in ["1.1.", ".1.1", "12_.34"] {
+        for input in ["1.1. ", ".1.1 ", "12_.34"] {
             assert_eq!(tokenize(input.chars()), Err(LexError::unexpected('.')));
         }
-        for input in ["123_", "12__34", "12._34", "12.34_"] {
+        for input in ["123_ ", "12__34", "12._34", "12.34_ "] {
             assert_eq!(tokenize(input.chars()), Err(LexError::unexpected('_')));
         }
     }
@@ -134,9 +127,7 @@ mod tests {
         this!'";
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Text("this is text".to_string()),
-            Token::Whitespace("  ".to_string()),
             Token::Text("and this is too, isn't that cool?".to_string()),
-            Token::Whitespace(" ".to_string()),
             Token::Text("and\n        this!".to_string()),
         ]));
     }
@@ -146,34 +137,34 @@ mod tests {
         let input = "_ _ _one two_";
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Symbol(Symbol::Underscore),
-            Token::Whitespace(" ".to_string()),
             Token::Symbol(Symbol::Underscore),
-            Token::Whitespace(" ".to_string()),
             Token::Identifier("_one".to_string()),
-            Token::Whitespace(" ".to_string()),
             Token::Identifier("two_".to_string()),
         ]));
     }
 
     #[test]
-    fn test_other_symbols() {
-        let input = ". one. .two # three# #four";
+    fn test_other_symbols_followed_by_identifiers() {
+        let input = r#" .one ."two" @three @"four" "#;
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Symbol(Symbol::Period),
-            Token::Whitespace(" ".to_string()),
             Token::Identifier("one".to_string()),
+            
             Token::Symbol(Symbol::Period),
-            Token::Whitespace(" ".to_string()),
-            Token::Symbol(Symbol::Period),
-            Token::Identifier("two".to_string()),
-            Token::Whitespace(" ".to_string()),
-            Token::Symbol(Symbol::Hash),
-            Token::Whitespace(" ".to_string()),
+            Token::QuotedIdentifier("two".to_string()),
+
+            Token::Symbol(Symbol::AtSign),
             Token::Identifier("three".to_string()),
-            Token::Symbol(Symbol::Hash),
-            Token::Whitespace(" ".to_string()),
-            Token::Symbol(Symbol::Hash),
-            Token::Identifier("four".to_string()),
+            
+            Token::Symbol(Symbol::AtSign),
+            Token::QuotedIdentifier("four".to_string()),
         ]));
+    }
+
+    #[test]
+    fn test_symbols_followed_by_whitespace() {
+        for input in ["one. ", "\"two\". ", /*"three@ ", "\"four\"@ "*/] {
+            assert_eq!(tokenize(input.chars()), Err(LexError::unexpected(' ')));
+        }
     }
 }
