@@ -191,9 +191,52 @@ mod tests {
                             alias: Some("t".to_string()),
                             name: "mytable".to_string(),
                             nodes: Vec::new(),
-                            schema: None,
+                            schema: None, // FIXME: Should this field exist? If so, populate it.
                         },
                     ],
+                })),
+            ],
+        }));
+    }
+
+    #[test]
+    fn test_empty_records() {
+        let input = vec![
+            Tkn::Keyword(Kwd::Table),
+            Tkn::Identifier("mytable".to_string()),
+            Tkn::Symbol(Sym::ParenLeft),
+
+            // Declare and close a named record
+            Tkn::Identifier("myrecord".to_string()),
+            Tkn::Symbol(Sym::ParenLeft),
+            Tkn::Symbol(Sym::ParenRight),
+
+            // Declare and close an explicit anonymous record
+            Tkn::Symbol(Sym::Underscore),
+            Tkn::Symbol(Sym::ParenLeft),
+            Tkn::Symbol(Sym::ParenRight),
+
+            // Declare and close an implicit anonymous record
+            Tkn::Symbol(Sym::ParenLeft),
+            Tkn::Symbol(Sym::ParenRight),
+
+            // Close the table
+            Tkn::Symbol(Sym::ParenRight),
+        ];
+        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
+            nodes: vec![
+                StructuralNode::Table(Box::new(Table {
+                    alias: None,
+                    name: "mytable".to_string(),
+                    nodes: vec![
+                        Record {
+                            name: Some("myrecord".to_string()),
+                            attributes: Vec::new(),
+                        },
+                        Record::default(),
+                        Record::default(),
+                    ],
+                    schema: None,
                 })),
             ],
         }));

@@ -23,6 +23,7 @@ pub enum StackItem {
     TreeRoot(Box<nodes::ParseTree>),
     Schema(Box<nodes::Schema>),
     Table(Box<nodes::Table>),
+    Record(Box<nodes::Record>),
 }
 
 enum PushedTableTo {
@@ -46,7 +47,12 @@ impl Context {
         self.stack.push(StackItem::Table(Box::new(table)));
     }
 
-    // These utility methods all panic if certain expectations are met, primarily
+    fn push_record(&mut self, record_name: Option<String>) {
+        let record = nodes::Record::new(record_name);
+        self.stack.push(StackItem::Record(Box::new(record)));
+    }
+
+    // These utility methods all panic if certain expectations are not met, primarily
     // because that indicates faulty logic in the parser rather than unexpected
     // tokens in the token stream.
     fn pop_schema_or_panic(&mut self) -> nodes::Schema {
@@ -63,12 +69,19 @@ impl Context {
         }
     }
 
+    fn pop_record_or_panic(&mut self) -> nodes::Record {
+        match self.stack.pop() {
+            Some(StackItem::Record(record)) => *record,
+            elt => panic!("expected record on stack; received {:?}", elt),
+        }
+    }
+
     fn push_schema_to_root_or_panic(&mut self, schema: nodes::Schema) {
         match self.stack.last_mut() {
             Some(StackItem::TreeRoot(tree)) => {
                 tree.nodes.push(nodes::StructuralNode::Schema(Box::new(schema)));
             }
-            elt => panic!("expected root tree on stack; received {:?}", elt),
+            elt => panic!("expected tree root on stack; received {:?}", elt),
         }
     }
 
@@ -83,7 +96,16 @@ impl Context {
                 schema.nodes.push(table);
                 PushedTableTo::Schema
             }
-            elt => panic!("expected root tree on stack; received {:?}", elt),
+            elt => panic!("expected tree root or schema on stack; received {:?}", elt),
+        }
+    }
+
+    fn push_record_to_table_or_panic(&mut self, record: nodes::Record) {
+        match self.stack.last_mut() {
+            Some(StackItem::Table(table)) => {
+                table.nodes.push(record);
+            }
+            elt => panic!("expected table on stack; received {:?}", elt),
         }
     }
 }
@@ -280,6 +302,80 @@ mod table_states {
                         PushedTableTo::Schema => to(schema_states::InSchemaScope),
                     }
                 }
+                Tkn::Identifier(ident) => {
+                    to(record_states::ReceivedRecordName(ident))
+                }
+                Tkn::Symbol(Sym::Underscore) => {
+                    to(record_states::ReceivedExplicitAnonymousRecord)
+                }
+                Tkn::Symbol(Sym::ParenLeft) => {
+                    ctx.push_record(None);
+                    to(record_states::InRecordScope)
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+}
+
+mod record_states {
+   use super::*;
+
+   /// State after receiving a record name in the table scope.
+   pub struct ReceivedRecordName(pub String);
+
+   impl State for ReceivedRecordName {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            let record_name = mem::take(&mut self.0);
+
+            match t {
+                Tkn::Symbol(Sym::ParenLeft) => {
+                    ctx.push_record(Some(record_name));
+                    println!("{:?}", ctx.stack);
+                    to(InRecordScope)
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    /// State after receiving an `_` in the table scope.
+    pub struct ReceivedExplicitAnonymousRecord;
+
+    impl State for ReceivedExplicitAnonymousRecord {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            match t {
+                Tkn::Symbol(Sym::ParenLeft) => {
+                    ctx.push_record(None);
+                    to(InRecordScope)
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    pub struct InRecordScope;
+
+    impl State for InRecordScope {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            match t {
+                Tkn::Symbol(Sym::ParenRight) => {
+                    let record = ctx.pop_record_or_panic();
+                    ctx.push_record_to_table_or_panic(record);
+                    to(table_states::InTableScope)
+                }
+                /* Update below for attributes list
+                Tkn::Identifier(ident) => {
+                    to(record_states::ReceivedRecordName(ident))
+                }
+                Tkn::Symbol(Sym::Underscore) => {
+                    to(record_states::ReceivedExplicitAnonymousRecord)
+                }
+                Tkn::Symbol(Sym::ParentLeft) => {
+                    ctx.push_record(None);
+                    to(InRecordScope)
+                }
+                */
                 _ => Err(ParseError),
             }
         }

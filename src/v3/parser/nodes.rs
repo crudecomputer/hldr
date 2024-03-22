@@ -36,10 +36,16 @@ impl Table {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Record {
     pub name: Option<String>,
     pub attributes: Vec<Attribute>,
+}
+
+impl Record {
+    pub fn new(name: Option<String>) -> Self {
+        Self { name, attributes: Vec::new() }
+    }
 }
 
 #[derive(Debug, PartialEq)]
