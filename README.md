@@ -4,24 +4,21 @@
 
 **Important:** Placeholder is in quite the alpha state and still very feature-incomplete.
 
-Placeholder strives to make generating _simple_ data much more succinct
-and cleaner than using SQL, PL/pgSQL, or even other programming languages
-with dedicated fixtures and factory libraries.
-
-With some easy to read syntax and a single `hldr` command,
-you can have a well populated database in no time without setting up
-languages, dependencies, or verbose factory classes.
+Placeholder strives to make generating - and maintaining - fixture data a pleasant experience
+by exposing an expressive DSL that offers a lot more power than JSON or YML can while also
+not requiring you to set up language runtimes, factory classes, etc.
 
 See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr)
 (also in an alpha state) for syntax highlighting examples.
 
 ## Contents
 
-1. [Installation](#installation)
-2. [Usage](#usage)
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Usage](#usage)
    1. [Command-line options](#options)
    2. [The options file](#the-options-file)
-3. [Features](#features)
+4. [Features](#features)
    1. [General syntax](#general-syntax)
    2. [Literal values](#literal-values)
    3. [Comments](#comments)
@@ -29,7 +26,11 @@ See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr
    5. [Named records](#named-records)
    6. [References](#references)
    7. [Table aliases](#table-aliases)
-4. [Planned features](#planned-features)
+5. [Planned features](#planned-features)
+
+## Overview
+
+**TODO:** Screenshot with highlighting and comments explaining syntax
 
 ## Installation
 

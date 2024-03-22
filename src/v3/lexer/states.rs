@@ -3,13 +3,21 @@
 //  - Add positions to errors
 //  - Better errors
 
-use super::errors::*;
-use super::tokens::*;
+use super::errors::LexError;
+use super::tokens::{Keyword, Symbol, Token};
 
 pub const NULL: char = '\0';
 pub const EOF: char = NULL;
 
 type ReceiveResult = Result<Box<dyn State>, LexError>;
+
+fn to<S: State + 'static>(state: S) -> ReceiveResult {
+    Ok(Box::new(state))
+}
+
+fn defer_to<S: State + 'static>(state: S, ctx: &mut Context, c: char) -> ReceiveResult {
+    state.receive(ctx, c)
+}
 
 /// The context accessible for any given state
 #[derive(Default)]
@@ -48,48 +56,44 @@ pub struct Start;
 impl State for Start {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            NULL | EOF => {
-                Ok(Box::new(Start))
-            }
-            '\r' | '\n' => {
-                Ok(Box::new(AfterReturn))
-            }
+            NULL | EOF => to(Start),
+            '\r' | '\n' => to(AfterReturn),
             '(' => {
                 ctx.tokens.push(Token::Symbol(Symbol::ParenLeft));
-                Ok(Box::new(Start))
+                to(Start)
             }
             ')' => {
                 ctx.tokens.push(Token::Symbol(Symbol::ParenRight));
-                Ok(Box::new(Start))
+                to(Start)
             }
             '@' => {
                 ctx.tokens.push(Token::Symbol(Symbol::AtSign));
-                Ok(Box::new(Start))
+                to(Start)
             }
             ',' => {
                 ctx.tokens.push(Token::Symbol(Symbol::Comma));
-                Ok(Box::new(Start))
+                to(Start)
             }
             '.' => {
-                Ok(Box::new(AfterPeriod))
+                to(AfterPeriod)
             }
             '-' => {
-                Ok(Box::new(AfterSingleDash))
+                to(AfterSingleDash)
             }
             '\'' => {
-                Ok(Box::new(InText))
+                to(InText)
             }
             '"' => {
-                Ok(Box::new(InQuotedIdentifier))
+                to(InQuotedIdentifier)
             }
             '0'..='9' => {
-                InInteger.receive(ctx, c)
+                defer_to(InInteger, ctx, c)
             }
             _ if is_identifier_char(c) => {
-                InIdentifier.receive(ctx, c)
+                defer_to(InIdentifier, ctx, c)
             }
             _ if is_whitespace(c) => {
-                Ok(Box::new(Start))
+                to(Start)
             }
             _ => Err(LexError::unexpected(c)),
         }
@@ -104,11 +108,11 @@ impl State for AfterPeriod {
         match c {
             '0'..='9' => {
                 ctx.stack.push('.');
-                InFloat.receive(ctx, c)
+                defer_to(InFloat, ctx, c)
             }
             _ if self.can_terminate(c) => {
                 ctx.tokens.push(Token::Symbol(Symbol::Period));
-                Start.receive(ctx, c)
+                defer_to(Start, ctx, c)
             }
             _ => Err(LexError::unexpected(c)),
         }
@@ -128,10 +132,12 @@ struct AfterReturn;
 impl State for AfterReturn {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\r' | '\n' => Ok(Box::new(AfterReturn)),
+            '\r' | '\n' => {
+                to(AfterReturn)
+            }
             _ => {
                 ctx.tokens.push(Token::LineSep);
-                Start.receive(ctx, c)
+                defer_to(Start, ctx, c)
             }
         }
     }
@@ -143,10 +149,10 @@ struct AfterSingleDash;
 impl State for AfterSingleDash {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '-' => Ok(Box::new(InComment)),
+            '-' => to(InComment),
             '0'..='9' | '.' => {
                 ctx.stack.push('-');
-                InInteger.receive(ctx, c)
+                defer_to(InInteger, ctx, c)
             }
             _ => Err(LexError::unexpected(c)),
         }
@@ -163,12 +169,12 @@ impl State for AfterQuotedIdentifier {
         match c {
             '"' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InQuotedIdentifier))
+                to(InQuotedIdentifier)
             }
             _ => {
                 let stack = ctx.drain_stack();
                 ctx.tokens.push(Token::QuotedIdentifier(stack));
-                Start.receive(ctx, c)
+                defer_to(Start, ctx, c)
             }
         }
     }
@@ -184,12 +190,12 @@ impl State for AfterText {
         match c {
             '\'' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InText))
+                to(InText)
             }
             _ => {
                 let stack = ctx.drain_stack();
                 ctx.tokens.push(Token::Text(stack));
-                Start.receive(ctx, c)
+                defer_to(Start, ctx, c)
             }
         }
     }
@@ -201,8 +207,8 @@ struct InComment;
 impl State for InComment {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\r' | '\n' => Ok(Box::new(AfterReturn)),
-            _ => Ok(Box::new(InComment)),
+            '\r' | '\n' => to(AfterReturn),
+            _ => to(InComment),
         }
     }
 }
@@ -215,7 +221,7 @@ impl State for InFloat {
         match c {
             '0'..='9' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InFloat))
+                to(InFloat)
             }
             // Entering into InFloat means there is already a decimal point in the stack
             '.' => {
@@ -227,14 +233,14 @@ impl State for InFloat {
             }
             '_' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InFloat))
+                to(InFloat)
             }
             _ if self.can_terminate(c) => match ctx.stack.last() {
                 Some(&'_') => Err(LexError::unexpected('_')),
                 _ => {
                     let stack = ctx.drain_stack();
                     ctx.tokens.push(Token::Number(stack));
-                    Start.receive(ctx, c)
+                    defer_to(Start, ctx, c)
                 }
             }
             _ => Err(LexError::unexpected(c)),
@@ -250,13 +256,13 @@ impl State for InIdentifier {
         match c {
             _ if is_identifier_char(c) => {
                 ctx.stack.push(c);
-                Ok(Box::new(InIdentifier))
+                to(InIdentifier)
             }
             _ => {
                 let stack = ctx.drain_stack();
                 let token = identifier_to_token(stack);
                 ctx.tokens.push(token);
-                Start.receive(ctx, c)
+                defer_to(Start, ctx, c)
             }
         }
     }
@@ -271,7 +277,7 @@ impl State for InInteger {
         match c {
             '0'..='9' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InInteger))
+                to(InInteger)
             }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
             '_' | '.' if ctx.stack.last() == Some(&'_') => {
@@ -279,18 +285,18 @@ impl State for InInteger {
             }
             '_' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InInteger))
+                to(InInteger)
             }
             '.' => {
                 ctx.stack.push(c);
-                Ok(Box::new(InFloat))
+                to(InFloat)
             }
             _ if self.can_terminate(c) => match ctx.stack.last() {
                 Some(&'_') => Err(LexError::unexpected('_')), 
                 _ => {
                     let stack = ctx.drain_stack();
                     ctx.tokens.push(Token::Number(stack));
-                    Start.receive(ctx, c)
+                    defer_to(Start, ctx, c)
                 }
             }
             _ => Err(LexError::unexpected(c)),
@@ -304,10 +310,10 @@ struct InQuotedIdentifier;
 impl State for InQuotedIdentifier {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '"' => Ok(Box::new(AfterQuotedIdentifier)),
+            '"' => to(AfterQuotedIdentifier),
             _ => {
                 ctx.stack.push(c);
-                Ok(Box::new(InQuotedIdentifier))
+                to(InQuotedIdentifier)
             }
         }
     }
@@ -319,10 +325,10 @@ struct InText;
 impl State for InText {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\'' => Ok(Box::new(AfterText)),
+            '\'' => to(AfterText),
             _ => {
                 ctx.stack.push(c);
-                Ok(Box::new(InText))
+                to(InText)
             }
         }
     }
