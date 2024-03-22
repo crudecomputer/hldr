@@ -187,6 +187,9 @@ impl State for InSchemaScope {
                 ctx.push_schema_to_root_or_panic(schema);
                 to(Root)
             }
+            Tkn::Keyword(Kwd::Table) => {
+                to(DeclaringTable)
+            }
             _ => Err(ParseError),
         }
     }

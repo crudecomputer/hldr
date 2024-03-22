@@ -116,4 +116,86 @@ mod tests {
             ],
         }));
     }
+
+    #[test]
+    fn test_empty_qualified_table() {
+        let input = vec![
+            // Declare the schema
+            Tkn::Keyword(Kwd::Schema),
+            Tkn::Identifier("myschema".to_string()),
+
+            // Open the schema
+            Tkn::Symbol(Sym::ParenLeft),
+
+            // Declare the table
+            Tkn::Keyword(Kwd::Table),
+            Tkn::Identifier("mytable".to_string()),
+
+            // Open & close the table
+            Tkn::Symbol(Sym::ParenLeft),
+            Tkn::Symbol(Sym::ParenRight),
+
+            // Close the schema
+            Tkn::Symbol(Sym::ParenRight),
+        ];
+        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
+            nodes: vec![
+                StructuralNode::Schema(Box::new(Schema {
+                    alias: None,
+                    name: "myschema".to_string(),
+                    nodes: vec![
+                        Table {
+                            alias: None,
+                            name: "mytable".to_string(),
+                            nodes: Vec::new(),
+                            schema: None,
+                        },
+                    ],
+                })),
+            ],
+        }));
+    }
+
+    #[test]
+    fn test_empty_qualified_table_with_aliases() {
+        let input = vec![
+            // Declare the schema
+            Tkn::Keyword(Kwd::Schema),
+            Tkn::Identifier("myschema".to_string()),
+            Tkn::Keyword(Kwd::As),
+            Tkn::Identifier("s".to_string()),
+
+            // Open the schema
+            Tkn::Symbol(Sym::ParenLeft),
+
+            // Declare the table
+            Tkn::Keyword(Kwd::Table),
+            Tkn::Identifier("mytable".to_string()),
+            Tkn::Keyword(Kwd::As),
+            Tkn::Identifier("t".to_string()),
+
+            // Open & close the table
+            Tkn::Symbol(Sym::ParenLeft),
+            Tkn::Symbol(Sym::ParenRight),
+
+            // Close the schema
+            Tkn::Symbol(Sym::ParenRight),
+        ];
+        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
+            nodes: vec![
+                StructuralNode::Schema(Box::new(Schema {
+                    alias: Some("s".to_string()),
+                    name: "myschema".to_string(),
+                    nodes: vec![
+                        Table {
+                            alias: Some("t".to_string()),
+                            name: "mytable".to_string(),
+                            nodes: Vec::new(),
+                            schema: None,
+                        },
+                    ],
+                })),
+            ],
+        }));
+    }
 }
