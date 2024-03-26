@@ -54,6 +54,12 @@ pub struct Attribute {
     pub value: Value,
 }
 
+impl Attribute {
+    pub fn new(name: String, value: Value) -> Self {
+        Self { name, value }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Bool(bool),

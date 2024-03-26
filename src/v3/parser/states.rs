@@ -24,6 +24,7 @@ pub enum StackItem {
     Schema(Box<nodes::Schema>),
     Table(Box<nodes::Table>),
     Record(Box<nodes::Record>),
+    Attribute(Box<nodes::Attribute>),
 }
 
 enum PushedTableTo {
@@ -52,9 +53,16 @@ impl Context {
         self.stack.push(StackItem::Record(Box::new(record)));
     }
 
-    // These utility methods all panic if certain expectations are not met, primarily
-    // because that indicates faulty logic in the parser rather than unexpected
-    // tokens in the token stream.
+    fn push_attribute(&mut self, name: String, value: nodes::Value) {
+        let attribute = nodes::Attribute::new(name, value);
+        self.stack.push(StackItem::Attribute(Box::new(attribute)));
+    }
+
+    // These utility methods all panic if certain expectations are not met,
+    // primarily because that indicates faulty logic in the parser rather than
+    // unexpected tokens in the token stream. In other words, unless I am woefully
+    // mistaken, there should not be any combination of tokens that can result in
+    // panics. Instead, they should always result in parse errors.
     fn pop_schema_or_panic(&mut self) -> nodes::Schema {
         match self.stack.pop() {
             Some(StackItem::Schema(schema)) => *schema,
@@ -73,6 +81,13 @@ impl Context {
         match self.stack.pop() {
             Some(StackItem::Record(record)) => *record,
             elt => panic!("expected record on stack; received {:?}", elt),
+        }
+    }
+
+    fn pop_attribute_or_panic(&mut self) -> nodes::Attribute {
+        match self.stack.pop() {
+            Some(StackItem::Attribute(attribute)) => *attribute,
+            elt => panic!("expected attribute on stack; received {:?}", elt),
         }
     }
 
@@ -108,13 +123,22 @@ impl Context {
             elt => panic!("expected table on stack; received {:?}", elt),
         }
     }
+
+    fn push_attribute_to_record_or_panic(&mut self, attribute: nodes::Attribute) {
+        match self.stack.last_mut() {
+            Some(StackItem::Record(record)) => {
+                record.attributes.push(attribute);
+            }
+            elt => panic!("expected record on stack; received {:?}", elt),
+        }
+    }
 }
 
 /// Root state that can expect top-level entities.
 pub struct Root;
 
 impl State for Root {
-    fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+    fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
         match t {
             // TODO: An explicit "EOF" token would likely be better
             Tkn::LineSep => {
@@ -138,7 +162,7 @@ mod schema_states {
     pub struct DeclaringSchema;
 
     impl State for DeclaringSchema {
-        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
             match t {
                 Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
                     to(ReceivedSchemaName(ident))
@@ -172,7 +196,7 @@ mod schema_states {
     struct DeclaringSchemaAlias(String);
 
     impl State for DeclaringSchemaAlias {
-        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
             let schema_name = mem::take(&mut self.0);
 
             match t {
@@ -228,7 +252,7 @@ mod table_states {
     pub struct DeclaringTable;
 
     impl State for DeclaringTable {
-        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
             match t {
                 Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
                     to(ReceivedTableName(ident))
@@ -261,7 +285,7 @@ mod table_states {
     struct DeclaringTableAlias(String);
 
     impl State for DeclaringTableAlias {
-        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
             let table_name = mem::take(&mut self.0);
 
             match t {
@@ -364,18 +388,156 @@ mod record_states {
                     ctx.push_record_to_table_or_panic(record);
                     to(table_states::InTableScope)
                 }
-                /* Update below for attributes list
-                Tkn::Identifier(ident) => {
-                    to(record_states::ReceivedRecordName(ident))
+                Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
+                    to(attribute_states::ReceivedAttributeName(ident))
                 }
-                Tkn::Symbol(Sym::Underscore) => {
-                    to(record_states::ReceivedExplicitAnonymousRecord)
+                _ => Err(ParseError),
+            }
+        }
+    }
+}
+
+mod attribute_states {
+    use super::*;
+
+    struct Identifier {
+        quoted: bool,
+        value: String,
+    }
+
+    pub struct ReceivedAttributeName(pub String);
+
+    impl State for ReceivedAttributeName {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            let attribute_name = mem::take(&mut self.0);
+
+            match t {
+                Tkn::Bool(b) => {
+                    let value = nodes::Value::Bool(b);
+                    ctx.push_attribute(attribute_name, value);
+                    to(ReceivedAttributeValue)
                 }
-                Tkn::Symbol(Sym::ParentLeft) => {
-                    ctx.push_record(None);
-                    to(InRecordScope)
+                Tkn::Number(n) => {
+                    let value = nodes::Value::Number(Box::new(n));
+                    ctx.push_attribute(attribute_name, value);
+                    to(ReceivedAttributeValue)
                 }
-                */
+                Tkn::Symbol(Sym::AtSign) => {
+                    to(ReceivedReferenceStart(attribute_name))
+                }
+                Tkn::Text(t) => {
+                    let value = nodes::Value::Text(Box::new(t));
+                    ctx.push_attribute(attribute_name, value);
+                    to(ReceivedAttributeValue)
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    pub struct ReceivedReferenceStart(pub String);
+
+    impl State for ReceivedReferenceStart {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
+            let attribute_name = mem::take(&mut self.0);
+            let quoted = if let &Tkn::QuotedIdentifier(_) = &t { true } else { false };
+
+            match t {
+                Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
+                    let identifiers = vec![Identifier { quoted, value: ident }];
+                    to(ReceivedReferenceIdentifier(attribute_name, identifiers))
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    pub struct ReceivedReferenceIdentifier(String, Vec<Identifier>);
+
+    impl State for ReceivedReferenceIdentifier {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            let attribute_name = mem::take(&mut self.0);
+            let mut identifiers = mem::take(&mut self.1);
+
+            match t {
+                Tkn::Symbol(Sym::Period) if identifiers.len() < 4 => {
+                    to(ReceivedReferenceSeparator(attribute_name, identifiers))
+                }
+                Tkn::LineSep | Tkn::Symbol(Sym::Comma) if identifiers.len() < 5 => {
+                    let (column, record, table, schema) = (
+                        identifiers.pop().expect("expected element"),
+                        identifiers.pop(),
+                        identifiers.pop(),
+                        identifiers.pop(),
+                    );
+                    if let &Some(Identifier{ quoted: true, .. }) = &record {
+                        return Err(ParseError);
+                    }
+                    // The reference value node has no concept of whether or not the original
+                    // token was quoted or not
+                    let reference = nodes::Reference {
+                        schema: schema.map(|s| s.value),
+                        table: table.map(|t| t.value),
+                        record: record.map(|r| r.value),
+                        column: column.value,
+                    };
+                    let attribute = nodes::Attribute {
+                        name: attribute_name,
+                        value: nodes::Value::Reference(Box::new(reference)),
+                    };
+                    ctx.push_attribute_to_record_or_panic(attribute);
+
+                    to(record_states::InRecordScope)
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    pub struct ReceivedReferenceSeparator(String, Vec<Identifier>);
+
+    impl State for ReceivedReferenceSeparator {
+        fn receive(&mut self, _ctx: &mut Context, t: Tkn) -> ParseResult {
+            // TODO: This is probably code smell at this point. Since the context
+            // already makes so many assumptions about what is on its stack and
+            // panics if items are wrong, should these all just be pushing to the
+            // `ctx.stack_items` and popping off each step?
+            let attribute_name = mem::take(&mut self.0);
+            let mut identifiers = mem::take(&mut self.1);
+            let quoted = if let Tkn::QuotedIdentifier(_) = &t { true } else { false };
+
+            // Quoted identifiers are allowed in schema, table, and columns
+            // names but not record names, eg. the following patterns are valid:
+            //
+            //   @ (un)quoted . (un)quoted . UNQUOTED   . (un)quoted
+            //   @ (un)quoted . UNQUOTED   . (un)quoted
+            //   @ UNQUOTED   . (un)quoted
+            //   @ quo(un)ted
+            //
+            // This implies that simple or positional length checks are insufficient
+            // to determine whether or not a quoted identifier is valid, as it depends
+            // on the final form of the reference, so this state defers all checks to
+            // the next state.
+            match t {
+                Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
+                    identifiers.push(Identifier { quoted, value: ident });
+                    to(ReceivedReferenceIdentifier(attribute_name, identifiers))
+                }
+                _ => Err(ParseError),
+            }
+        }
+    }
+
+    pub struct ReceivedAttributeValue;
+
+    impl State for ReceivedAttributeValue {
+        fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
+            match t {
+                Tkn::Symbol(Sym::Comma) | Tkn::LineSep => {
+                    let attribute = ctx.pop_attribute_or_panic();
+                    ctx.push_attribute_to_record_or_panic(attribute);
+                    to(record_states::InRecordScope)
+                }
                 _ => Err(ParseError),
             }
         }
