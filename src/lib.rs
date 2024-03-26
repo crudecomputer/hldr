@@ -2,13 +2,14 @@ use std::{error::Error, fs, path::PathBuf};
 
 use serde::Deserialize;
 
-pub mod error;
-pub mod lex;
-pub mod load;
-pub mod parse;
-pub mod validate;
-
+mod v1;
 mod v3;
+
+pub use v1::error;
+pub use v1::lex;
+pub use v1::load;
+pub use v1::parse;
+pub use v1::validate;
 
 pub use error::{HldrError, HldrErrorKind};
 
