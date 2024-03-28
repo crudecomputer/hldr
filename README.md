@@ -30,7 +30,14 @@ See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr
 
 ## Overview
 
-**TODO:** Screenshot with highlighting and comments explaining syntax
+### General syntax
+
+![General syntax](./docs/00-syntax.png)
+
+### Referencing records
+
+![References](./docs/01-references.png)
+
 
 ## Installation
 
@@ -154,7 +161,7 @@ schema_name
       column1 value1
       column2 value2
 
-    _ 
+    _
       column2 value3
 ```
 
