@@ -39,12 +39,12 @@ impl Table {
 #[derive(Debug, Default, PartialEq)]
 pub struct Record {
     pub name: Option<String>,
-    pub attributes: Vec<Attribute>,
+    pub nodes: Vec<Attribute>,
 }
 
 impl Record {
     pub fn new(name: Option<String>) -> Self {
-        Self { name, attributes: Vec::new() }
+        Self { name, nodes: Vec::new() }
     }
 }
 

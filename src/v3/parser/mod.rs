@@ -1,5 +1,5 @@
 mod errors;
-mod nodes;
+pub mod nodes;
 mod states;
 
 use errors::*;
@@ -231,7 +231,7 @@ mod tests {
                     nodes: vec![
                         Record {
                             name: Some("myrecord".to_owned()),
-                            attributes: Vec::new(),
+                            nodes: Vec::new(),
                         },
                         Record::default(),
                         Record::default(),
@@ -337,7 +337,7 @@ mod tests {
                     nodes: vec![
                         Record {
                             name: Some("myrecord".to_owned()),
-                            attributes: vec![
+                            nodes: vec![
                                 Attribute {
                                     name: "column_one".to_owned(),
                                     value: Value::Number(Box::new("123".to_owned())),
@@ -350,7 +350,7 @@ mod tests {
                         },
                         Record {
                             name: None,
-                            attributes: vec![
+                            nodes: vec![
                                 Attribute {
                                     name: "column_one".to_owned(),
                                     value: Value::Bool(true),

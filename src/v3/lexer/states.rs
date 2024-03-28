@@ -56,7 +56,7 @@ pub struct Start;
 impl State for Start {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            NULL | EOF => to(Start),
+            NULL => to(Start),
             '\r' | '\n' => to(AfterReturn),
             '(' => {
                 ctx.tokens.push(Token::Symbol(Symbol::ParenLeft));
@@ -205,7 +205,7 @@ impl State for AfterText {
 struct InComment;
 
 impl State for InComment {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, _ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
             '\r' | '\n' => to(AfterReturn),
             _ => to(InComment),
@@ -292,7 +292,7 @@ impl State for InInteger {
                 to(InFloat)
             }
             _ if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => Err(LexError::unexpected('_')), 
+                Some(&'_') => Err(LexError::unexpected('_')),
                 _ => {
                     let stack = ctx.drain_stack();
                     ctx.tokens.push(Token::Number(stack));
@@ -353,7 +353,7 @@ fn is_identifier_char(c: char) -> bool {
         // `char.is_alphabetic` isn't enough because that precludes other unicode chars
         // that are valid in postgres identifiers, eg:
         //     create table love (💝 text);
-        //     > CREATE TABLE 
+        //     > CREATE TABLE
         //
         // There is, however, a very strong chance the below conditions are not fully accurate.
         !c.is_control() && !c.is_whitespace() && !c.is_ascii_punctuation()

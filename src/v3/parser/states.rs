@@ -127,7 +127,7 @@ impl Context {
     fn push_attribute_to_record_or_panic(&mut self, attribute: nodes::Attribute) {
         match self.stack.last_mut() {
             Some(StackItem::Record(record)) => {
-                record.attributes.push(attribute);
+                record.nodes.push(attribute);
             }
             elt => panic!("expected record on stack; received {:?}", elt),
         }
