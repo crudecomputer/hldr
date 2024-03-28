@@ -20,7 +20,7 @@ fn defer_to<S: State + 'static>(state: S, ctx: &mut Context, c: char) -> Receive
 }
 
 /// The context accessible for any given state
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Context {
     stack: Vec<char>,
     tokens: Vec<Token>,

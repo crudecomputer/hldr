@@ -17,6 +17,8 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
         return Err(LexError::unexpected_eof());
     }
 
+    println!("{:?}", context);
+
     Ok(context.into_tokens())
 }
 
@@ -149,13 +151,13 @@ mod tests {
         assert_eq!(tokenize(input.chars()), Ok(vec![
             Token::Symbol(Symbol::Period),
             Token::Identifier("one".to_string()),
-            
+
             Token::Symbol(Symbol::Period),
             Token::QuotedIdentifier("two".to_string()),
 
             Token::Symbol(Symbol::AtSign),
             Token::Identifier("three".to_string()),
-            
+
             Token::Symbol(Symbol::AtSign),
             Token::QuotedIdentifier("four".to_string()),
         ]));

@@ -44,6 +44,18 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
+pub fn v3_place(options: &Options, _commit: bool) -> Result<(), Box<dyn Error>> {
+    let input = fs::read_to_string(&options.data_file)?;
+
+    let tokens = v3::lexer::tokenize(input.chars()).unwrap();
+    let parse_tree = v3::parser::parse(tokens.into_iter()).unwrap();
+    let parse_tree = v3::analyzer::analyze(parse_tree).unwrap();
+
+    v3::loader::load(parse_tree);
+
+    Ok(())
+}
+
 pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
     let content = fs::read_to_string(&options.data_file)?;
     let tokens = lex::lex(&content)?;

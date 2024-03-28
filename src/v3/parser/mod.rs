@@ -11,6 +11,7 @@ pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, Par
     let mut state: Box<dyn states::State> = Box::new(states::Root);
 
     for token in input {
+        println!("state {:?} receiving token {:?}", state, token);
         state = state.receive(&mut context, token)?;
     }
 

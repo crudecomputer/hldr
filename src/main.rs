@@ -14,6 +14,7 @@ struct Command {
     #[clap(short = 'f', long = "data-file", name = "DATA-FILE")]
     file: Option<PathBuf>,
 
+    // FIXME: This is not optional actually
     /// Path to the optional .toml options file
     #[clap(short = 'o', long = "opts-file", name = "OPTS-FILE", default_value = "hldr-opts.toml")]
     opts_file: PathBuf,
@@ -43,5 +44,6 @@ fn main() {
         options
     };
 
-    hldr::place(&options, cmd.commit).unwrap();
+    // hldr::place(&options, cmd.commit).unwrap();
+    hldr::v3_place(&options, cmd.commit).unwrap();
 }

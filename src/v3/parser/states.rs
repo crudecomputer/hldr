@@ -10,12 +10,16 @@ use super::nodes;
 
 type ParseResult = Result<Box<dyn State>, ParseError>;
 
-pub trait State {
+pub trait State: std::fmt::Debug {
     fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult;
 }
 
 fn to<S: State + 'static>(state: S) -> ParseResult {
     Ok(Box::new(state))
+}
+
+fn defer_to<S: State + 'static>(state: &mut S, ctx: &mut Context, t: Tkn) -> ParseResult {
+    state.receive(ctx, t)
 }
 
 #[derive(Debug)]
@@ -135,6 +139,7 @@ impl Context {
 }
 
 /// Root state that can expect top-level entities.
+#[derive(Debug)]
 pub struct Root;
 
 impl State for Root {
@@ -159,6 +164,7 @@ mod schema_states {
     use super::*;
 
     /// State after receiving the `schema` keyword for declaration.
+    #[derive(Debug)]
     pub struct DeclaringSchema;
 
     impl State for DeclaringSchema {
@@ -173,6 +179,7 @@ mod schema_states {
     }
 
     /// State after receiving the schema name during declaration.
+    #[derive(Debug)]
     struct ReceivedSchemaName(String);
 
     impl State for ReceivedSchemaName {
@@ -193,6 +200,7 @@ mod schema_states {
     }
 
     /// State after receiving the `as` keyword during schema declaration.
+    #[derive(Debug)]
     struct DeclaringSchemaAlias(String);
 
     impl State for DeclaringSchemaAlias {
@@ -209,6 +217,7 @@ mod schema_states {
         }
     }
 
+    #[derive(Debug)]
     struct ReceivedSchemaAlias(String, String);
 
     impl State for ReceivedSchemaAlias {
@@ -225,7 +234,7 @@ mod schema_states {
         }
     }
 
-    /// State
+    #[derive(Debug)]
     pub struct InSchemaScope;
 
     impl State for InSchemaScope {
@@ -239,6 +248,9 @@ mod schema_states {
                 Tkn::Keyword(Kwd::Table) => {
                     to(table_states::DeclaringTable)
                 }
+                Tkn::LineSep => {
+                    to(InSchemaScope)
+                }
                 _ => Err(ParseError),
             }
         }
@@ -249,6 +261,7 @@ mod table_states {
     use super::*;
 
     /// State after receiving the `table` keyword for declaration.
+    #[derive(Debug)]
     pub struct DeclaringTable;
 
     impl State for DeclaringTable {
@@ -263,6 +276,7 @@ mod table_states {
     }
 
     /// State after receiving the table name during declaration.
+    #[derive(Debug)]
     struct ReceivedTableName(String);
 
     impl State for ReceivedTableName {
@@ -282,6 +296,7 @@ mod table_states {
         }
     }
 
+    #[derive(Debug)]
     struct DeclaringTableAlias(String);
 
     impl State for DeclaringTableAlias {
@@ -297,6 +312,7 @@ mod table_states {
         }
     }
 
+    #[derive(Debug)]
     struct ReceivedTableAlias(String, String);
 
     impl State for ReceivedTableAlias {
@@ -313,6 +329,7 @@ mod table_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct InTableScope;
 
     impl State for InTableScope {
@@ -336,6 +353,9 @@ mod table_states {
                     ctx.push_record(None);
                     to(record_states::InRecordScope)
                 }
+                Tkn::LineSep => {
+                    to(InTableScope)
+                }
                 _ => Err(ParseError),
             }
         }
@@ -343,12 +363,13 @@ mod table_states {
 }
 
 mod record_states {
-   use super::*;
+    use super::*;
 
-   /// State after receiving a record name in the table scope.
-   pub struct ReceivedRecordName(pub String);
+    /// State after receiving a record name in the table scope.
+    #[derive(Debug)]
+    pub struct ReceivedRecordName(pub String);
 
-   impl State for ReceivedRecordName {
+    impl State for ReceivedRecordName {
         fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
             let record_name = mem::take(&mut self.0);
 
@@ -364,6 +385,7 @@ mod record_states {
     }
 
     /// State after receiving an `_` in the table scope.
+    #[derive(Debug)]
     pub struct ReceivedExplicitAnonymousRecord;
 
     impl State for ReceivedExplicitAnonymousRecord {
@@ -378,6 +400,7 @@ mod record_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct InRecordScope;
 
     impl State for InRecordScope {
@@ -391,6 +414,9 @@ mod record_states {
                 Tkn::Identifier(ident) | Tkn::QuotedIdentifier(ident) => {
                     to(attribute_states::ReceivedAttributeName(ident))
                 }
+                Tkn::LineSep => {
+                    to(InRecordScope)
+                }
                 _ => Err(ParseError),
             }
         }
@@ -398,13 +424,17 @@ mod record_states {
 }
 
 mod attribute_states {
+    use self::record_states::InRecordScope;
+
     use super::*;
 
+    #[derive(Debug)]
     struct Identifier {
         quoted: bool,
         value: String,
     }
 
+    #[derive(Debug)]
     pub struct ReceivedAttributeName(pub String);
 
     impl State for ReceivedAttributeName {
@@ -435,6 +465,7 @@ mod attribute_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct ReceivedReferenceStart(pub String);
 
     impl State for ReceivedReferenceStart {
@@ -452,6 +483,7 @@ mod attribute_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct ReceivedReferenceIdentifier(String, Vec<Identifier>);
 
     impl State for ReceivedReferenceIdentifier {
@@ -494,6 +526,7 @@ mod attribute_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct ReceivedReferenceSeparator(String, Vec<Identifier>);
 
     impl State for ReceivedReferenceSeparator {
@@ -528,15 +561,20 @@ mod attribute_states {
         }
     }
 
+    #[derive(Debug)]
     pub struct ReceivedAttributeValue;
 
     impl State for ReceivedAttributeValue {
         fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
             match t {
-                Tkn::Symbol(Sym::Comma) | Tkn::LineSep => {
+                Tkn::Symbol(Sym::Comma) | Tkn::LineSep  | Tkn::Symbol(Sym::ParenRight) => {
                     let attribute = ctx.pop_attribute_or_panic();
                     ctx.push_attribute_to_record_or_panic(attribute);
-                    to(record_states::InRecordScope)
+
+                    match t {
+                        Tkn::Symbol(Sym::ParenRight) => defer_to(&mut InRecordScope, ctx, t),
+                        _ => to(record_states::InRecordScope),
+                    }
                 }
                 _ => Err(ParseError),
             }
