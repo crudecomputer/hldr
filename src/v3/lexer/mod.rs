@@ -17,8 +17,6 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
         return Err(LexError::unexpected_eof());
     }
 
-    println!("{:?}", context);
-
     Ok(context.into_tokens())
 }
 

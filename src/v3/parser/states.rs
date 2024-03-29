@@ -376,7 +376,6 @@ mod record_states {
             match t {
                 Tkn::Symbol(Sym::ParenLeft) => {
                     ctx.push_record(Some(record_name));
-                    println!("{:?}", ctx.stack);
                     to(InRecordScope)
                 }
                 _ => Err(ParseError),
@@ -495,7 +494,7 @@ mod attribute_states {
                 Tkn::Symbol(Sym::Period) if identifiers.len() < 4 => {
                     to(ReceivedReferenceSeparator(attribute_name, identifiers))
                 }
-                Tkn::LineSep | Tkn::Symbol(Sym::Comma) if identifiers.len() < 5 => {
+                Tkn::LineSep | Tkn::Symbol(Sym::Comma) | Tkn::Symbol(Sym::ParenRight) if identifiers.len() < 5 => {
                     let (column, record, table, schema) = (
                         identifiers.pop().expect("expected element"),
                         identifiers.pop(),
@@ -519,7 +518,12 @@ mod attribute_states {
                     };
                     ctx.push_attribute_to_record_or_panic(attribute);
 
-                    to(record_states::InRecordScope)
+                    // TODO: This pattern is getting a bit gross. There needs to be a cleaner way of ending,
+                    // since all values need to handle this line sep/comma/paren pattern.
+                    match t {
+                        Tkn::Symbol(Sym::ParenRight) => defer_to(&mut InRecordScope, ctx, t),
+                        _ => to(record_states::InRecordScope),
+                    }
                 }
                 _ => Err(ParseError),
             }
@@ -567,7 +571,7 @@ mod attribute_states {
     impl State for ReceivedAttributeValue {
         fn receive(&mut self, ctx: &mut Context, t: Tkn) -> ParseResult {
             match t {
-                Tkn::Symbol(Sym::Comma) | Tkn::LineSep  | Tkn::Symbol(Sym::ParenRight) => {
+                Tkn::Symbol(Sym::Comma) | Tkn::LineSep | Tkn::Symbol(Sym::ParenRight) => {
                     let attribute = ctx.pop_attribute_or_panic();
                     ctx.push_attribute_to_record_or_panic(attribute);
 
