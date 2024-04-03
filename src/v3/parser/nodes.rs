@@ -27,14 +27,11 @@ pub struct Table {
     pub alias: Option<String>,
     pub name: String,
     pub nodes: Vec<Record>,
-
-    #[deprecated(note = "This is a temporary field")]
-    pub schema: Option<String>,
 }
 
 impl Table {
     pub fn new(name: String, alias: Option<String>) -> Self {
-        Self { alias, name, nodes: Vec::new(), schema: None }
+        Self { alias, name, nodes: Vec::new() }
     }
 }
 
