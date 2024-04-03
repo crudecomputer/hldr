@@ -190,6 +190,7 @@ impl State for AfterText {
         match c {
             '\'' => {
                 ctx.stack.push(c);
+                ctx.stack.push(c);
                 to(InText)
             }
             _ => {

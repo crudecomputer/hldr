@@ -107,7 +107,7 @@ impl<'a, 'b> Loader<'a, 'b> {
             Value::Text(t) => format!("'{}'", t),
             Value::Reference(refval) => {
                 let col = refval.column.as_str();
-                
+
                 let qualified_name = format!("{}.{}@{}", refval.schema, refval.table, refval.record);
                 let row = self.named_records.get(&qualified_name).unwrap();
                 let val = row.try_get(col);

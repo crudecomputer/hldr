@@ -1,3 +1,12 @@
+/*
+TODO
+- Verify that aliases are not reused across *different* entities
+- Update analyzer so that this can't happen:
+
+    table t1 ()
+    table table1 as t1 ()
+*/
+
 use std::collections::HashSet;
 use crate::v3::parser::nodes::*;
 
@@ -7,6 +16,12 @@ use error::AnalyzeError;
 pub type AnalyzeResult = Result<ValidatedParseTree, AnalyzeError>;
 
 pub struct ValidatedParseTree(ParseTree);
+
+impl ValidatedParseTree {
+    pub fn into_inner(self) -> ParseTree {
+        self.0
+    }
+}
 
 /*
 // The schema name, table name, or alias used to define the scope
@@ -72,6 +87,8 @@ fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) {
     };
 
     for record in &table.nodes {
+        analyze_record(record, &refset, &scope_name);
+
         if let Some(name) = &record.name {
             let key = format!("{}.{}", scope_name, name);
 
@@ -79,8 +96,6 @@ fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) {
                 panic!("duplicate record in table {}: {}", table.name, name);
             }
         }
-
-        analyze_record(record, &refset, &scope_name);
     }
 }
 

@@ -15,6 +15,9 @@ pub use error::{HldrError, HldrErrorKind};
 
 #[derive(Clone, Default, Debug, Deserialize)]
 pub struct Options {
+    #[serde(default)]
+    pub commit: bool,
+
     #[serde(default = "default_data_file")]
     pub data_file: PathBuf,
 
@@ -44,14 +47,24 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
-pub fn v3_place(options: &Options, _commit: bool) -> Result<(), Box<dyn Error>> {
+pub fn v3_place(options: &Options) -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(&options.data_file)?;
 
     let tokens = v3::lexer::tokenize(input.chars()).unwrap();
     let parse_tree = v3::parser::parse(tokens.into_iter()).unwrap();
     let parse_tree = v3::analyzer::analyze(parse_tree).unwrap();
 
-    v3::loader::load(parse_tree);
+    let mut client = v3::loader::new_client(&options.database_conn)?;
+    let mut transaction = client.transaction()?;
+
+    v3::loader::load(&mut transaction, parse_tree)?;
+
+    if options.commit {
+        println!("Committing changes");
+        transaction.commit()?;
+    } else {
+        println!("Rolling back changes, pass `--commit` to apply")
+    }
 
     Ok(())
 }

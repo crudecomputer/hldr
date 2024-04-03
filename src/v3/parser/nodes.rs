@@ -27,6 +27,8 @@ pub struct Table {
     pub alias: Option<String>,
     pub name: String,
     pub nodes: Vec<Record>,
+
+    #[deprecated(note = "This is a temporary field")]
     pub schema: Option<String>,
 }
 
@@ -63,6 +65,7 @@ impl Attribute {
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Bool(bool),
+    // TODO: Remove boxes on strings, overoptimization
     Number(Box<String>),
     Reference(Box<Reference>),
     Text(Box<String>),
