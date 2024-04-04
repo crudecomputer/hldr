@@ -1,7 +1,9 @@
+pub mod error;
+
 use std::{collections::HashMap, mem, str::FromStr, time::Duration};
 use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
-
-use super::parser::nodes::{
+use crate::analyzer::ValidatedParseTree;
+use crate::parser::nodes::{
     StructuralNode,
     Schema,
     Table,
@@ -9,11 +11,7 @@ use super::parser::nodes::{
     Attribute,
     Value,
 };
-use super::analyzer::ValidatedParseTree;
-
-mod error;
-pub use error::{ClientError, LoadError};
-
+use error::{ClientError, LoadError};
 
 
 // TODO: move this
@@ -173,9 +171,6 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
             Value::Reference(r) if r.record.is_none() => {
                 // Column-reference could refer to a literal value, another
                 // column reference, or a reference to a different record
-                println!("{:?}", self.attribute_indexes);
-                println!("{:?}", r);
-
                 let index = self.attribute_indexes
                     .get(&r.column.as_ref())
                     .expect("missing column");

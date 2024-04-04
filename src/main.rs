@@ -48,6 +48,7 @@ fn main() {
         options
     };
 
-    // hldr::place(&options, cmd.commit).unwrap();
-    hldr::v3_place(&options).unwrap();
+    if let Err(e) = hldr::place(&options) {
+        eprintln!("Error: {}", e);
+    }
 }

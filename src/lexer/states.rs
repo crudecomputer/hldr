@@ -3,8 +3,8 @@
 //  - Add positions to errors
 //  - Better errors
 
-use crate::v3::Position;
-use super::errors::LexError;
+use crate::Position;
+use super::error::LexError;
 use super::tokens::{Keyword, Symbol, Token, TokenKind};
 
 pub const NULL: char = '\0';
@@ -66,10 +66,6 @@ impl Context {
         if self.stack.is_empty() {
             self.reset_start();
         }
-
-        // if c == NULL || is_whitespace(c) {
-        //     self.reset_start();
-        // }
     }
 
     pub fn reset_start(&mut self) {

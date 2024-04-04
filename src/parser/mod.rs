@@ -1,10 +1,11 @@
-mod errors;
+pub mod error;
 pub mod nodes;
 mod states;
 
-use errors::*;
-use super::lexer::{Token, TokenKind};
-use crate::v3::Position;
+use crate::Position;
+use super::lexer::tokens::{Token, TokenKind};
+
+use error::{ParseError, ParseErrorKind};
 
 pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, ParseError> {
     let mut context = states::Context::default();

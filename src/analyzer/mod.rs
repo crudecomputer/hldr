@@ -6,12 +6,12 @@ TODO
     table t1 ()
     table table1 as t1 ()
 */
+pub mod error;
 
 use std::collections::HashSet;
-use crate::v3::parser::nodes::*;
+use crate::parser::nodes::*;
+use error::*;
 
-mod error;
-use error::AnalyzeError;
 
 pub type AnalyzeResult = Result<ValidatedParseTree, AnalyzeError>;
 
@@ -23,18 +23,6 @@ impl ValidatedParseTree {
     }
 }
 
-/*
-// The schema name, table name, or alias used to define the scope
-type ScopeName = String;
-type RecordNames = HashSet<String>;
-type TableRecordsMap = HashMap<ScopeName, RecordNames>;
-
-#[derive(Default)]
-struct RefSet {
-    unqualified: TableRecordsMap,
-    qualified: HashMap<ScopeName, TableRecordsMap>,
-}
-*/
 type RefSet = HashSet<String>;
 
 pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
@@ -44,11 +32,11 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
         match node {
             StructuralNode::Schema(schema) => {
                 for table in &schema.nodes {
-                    analyze_table(Some(&schema), table, &mut refset);
+                    analyze_table(Some(&schema), table, &mut refset)?;
                 }
             }
             StructuralNode::Table(table) => {
-                analyze_table(None, table, &mut refset);
+                analyze_table(None, table, &mut refset)?;
             }
         }
     }
@@ -56,27 +44,7 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
     Ok(ValidatedParseTree(parse_tree))
 }
 
-fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) {
-    /*
-    let table_records = {
-        let table_scope_name = table.alias.as_ref().unwrap_or(&table.name);
-        match schema {
-            Some(schema) => {
-                let schema_scope_name = schema.alias.as_ref().unwrap_or(&schema.name);
-                refset.qualified
-                    .entry(schema_scope_name.clone())
-                    .or_default()
-                    .entry(table_scope_name.clone())
-                    .or_default()
-            }
-            None => {
-                refset.unqualified
-                    .entry(table_scope_name.clone())
-                    .or_default()
-            }
-        }
-    };
-    */
+fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) -> Result<(), AnalyzeError> {
     let scope_name = match schema {
         Some(schema) => format!(
             "{}.{}",
@@ -87,24 +55,36 @@ fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) {
     };
 
     for record in &table.nodes {
-        analyze_record(record, &refset, &scope_name);
+        analyze_record(record, &refset, &scope_name)?;
 
         if let Some(name) = &record.name {
             let key = format!("{}.{}", scope_name, name);
 
             if !refset.insert(key) {
-                panic!("duplicate record in table {}: {}", table.name, name);
+                return Err(AnalyzeError {
+                    kind: AnalyzeErrorKind::DuplicateRecord {
+                        scope: scope_name,
+                        record: name.clone(),
+                    },
+                });
             }
         }
     }
+
+    Ok(())
 }
 
-fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) {
+fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) -> Result<(), AnalyzeError> {
     let mut attrnames = HashSet::new();
 
     for attr in &record.nodes {
         if !attrnames.insert(&attr.name) {
-            panic!("duplicate column in table {}: {}", parent_scope, attr.name);
+            return Err(AnalyzeError {
+                kind: AnalyzeErrorKind::DuplicateColumn {
+                    scope: parent_scope.to_owned(),
+                    column: attr.name.clone(),
+                },
+            });
         }
 
         if let Value::Reference(val) = &attr.value {
@@ -113,7 +93,11 @@ fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) {
             // database.
             if val.record.is_none() {
                 if !attrnames.contains(&val.column) {
-                    panic!("column not found: {}", val.column);
+                    return Err(AnalyzeError {
+                        kind: AnalyzeErrorKind::ColumnNotFound {
+                            column: val.column.clone(),
+                        },
+                    });
                 }
                 continue;
             }
@@ -127,8 +111,14 @@ fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) {
             };
 
             if !refset.contains(&expected_key) {
-                panic!("record not found: {}", expected_key);
+                return Err(AnalyzeError {
+                    kind: AnalyzeErrorKind::RecordNotFound {
+                        record: expected_key,
+                    },
+                });
             }
         }
     }
+
+    Ok(())
 }

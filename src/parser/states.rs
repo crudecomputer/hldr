@@ -1,12 +1,11 @@
 use std::mem;
-
-use crate::v3::lexer::{
+use crate::lexer::tokens::{
     Keyword,
     Symbol,
     Token,
     TokenKind,
 };
-use super::errors::ParseError;
+use super::error::ParseError;
 use super::nodes;
 
 type ParseResult = Result<Box<dyn State>, ParseError>;
@@ -67,7 +66,7 @@ impl Context {
     // primarily because that indicates faulty logic in the parser rather than
     // unexpected tokens in the token stream. In other words, unless I am woefully
     // mistaken, there should not be any combination of tokens that can result in
-    // panics. Instead, they should always result in parse errors.
+    // panics. Instead, bad tokens should always result in parse errors.
     fn pop_schema_or_panic(&mut self) -> nodes::Schema {
         match self.stack.pop() {
             Some(StackItem::Schema(schema)) => *schema,
@@ -497,6 +496,7 @@ mod attribute_states {
                 }
                 TokenKind::LineSep | TokenKind::Symbol(Symbol::Comma) | TokenKind::Symbol(Symbol::ParenRight) if identifiers.len() < 5 => {
                     let (column, record, table, schema) = (
+                        // In this state there should always be at least one identifier
                         identifiers.pop().expect("expected element"),
                         identifiers.pop(),
                         identifiers.pop(),

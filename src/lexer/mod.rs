@@ -1,9 +1,9 @@
-mod errors;
+pub mod error;
 mod states;
-mod tokens;
+pub mod tokens;
 
-pub use errors::*;
-pub use tokens::{Keyword, Symbol, Token, TokenKind};
+use error::LexError;
+use tokens::Token;
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
     let mut context = states::Context::new();

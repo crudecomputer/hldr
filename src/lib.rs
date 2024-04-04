@@ -1,17 +1,17 @@
-use std::{error::Error, fs, path::PathBuf};
+pub mod analyzer;
+pub mod error;
+pub mod lexer;
+pub mod loader;
+pub mod parser;
+mod position;
 
+use std::fs;
+use std::path::PathBuf;
 use serde::Deserialize;
 
-mod v1;
-mod v3;
+use error::HldrError;
+pub use position::Position;
 
-pub use v1::error;
-pub use v1::lex;
-pub use v1::load;
-pub use v1::parse;
-pub use v1::validate;
-
-pub use error::{HldrError, HldrErrorKind};
 
 #[derive(Clone, Default, Debug, Deserialize)]
 pub struct Options {
@@ -47,17 +47,15 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
-pub fn v3_place(options: &Options) -> Result<(), Box<dyn Error>> {
+pub fn place(options: &Options) -> Result<(), HldrError> {
     let input = fs::read_to_string(&options.data_file)?;
-
-    let tokens = v3::lexer::tokenize(input.chars()).unwrap();
-    let parse_tree = v3::parser::parse(tokens.into_iter()).unwrap();
-    let parse_tree = v3::analyzer::analyze(parse_tree).unwrap();
-
-    let mut client = v3::loader::new_client(&options.database_conn)?;
+    let tokens = lexer::tokenize(input.chars())?;
+    let parse_tree = parser::parse(tokens.into_iter())?;
+    let parse_tree = analyzer::analyze(parse_tree)?;
+    let mut client = loader::new_client(&options.database_conn)?;
     let mut transaction = client.transaction()?;
 
-    v3::loader::load(&mut transaction, parse_tree)?;
+    loader::load(&mut transaction, parse_tree)?;
 
     if options.commit {
         println!("Committing changes");
@@ -69,30 +67,9 @@ pub fn v3_place(options: &Options) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
-    let content = fs::read_to_string(&options.data_file)?;
-    let tokens = lex::lex(&content)?;
-    let schemas = parse::parse(tokens)?;
-    let validated = validate::validate(schemas)?;
-
-    let mut client = load::new_client(&options.database_conn)?;
-    let mut transaction = client.transaction()?;
-
-    load::load(&mut transaction, &validated)?;
-
-    if commit {
-        println!("Committing changes");
-        transaction.commit()?;
-    } else {
-        println!("Rolling back changes, pass `--commit` to apply")
-    }
-
-    Ok(())
-}
-
-/*
 #[cfg(test)]
 mod root_tests {
+/*
     use std::env;
 
     use super::{place, Options, PathBuf};
@@ -106,5 +83,5 @@ mod root_tests {
 
         place(&options, false).unwrap();
     }
-}
 */
+}
