@@ -3,18 +3,19 @@ mod states;
 mod tokens;
 
 pub use errors::*;
-pub use tokens::{Keyword, Symbol, Token};
+pub use tokens::{Keyword, Symbol, Token, TokenKind};
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
-    let mut context = states::Context::default();
+    let mut context = states::Context::new();
     let mut state: Box<dyn states::State> = Box::new(states::Start);
 
     for c in input {
         state = state.receive(&mut context, c)?;
+        context.increment_position(c);
     }
 
-    if let Err(_) = state.receive(&mut context, states::EOF) {
-        return Err(LexError::unexpected_eof());
+    if let Err(LexError { position, .. }) = state.receive(&mut context, states::EOF) {
+        return Err(LexError::unexpected_eof(position));
     }
 
     Ok(context.into_tokens())

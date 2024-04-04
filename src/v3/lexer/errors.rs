@@ -1,3 +1,5 @@
+use crate::v3::Position;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum LexErrorKind {
     // ExpectedComment,
@@ -11,15 +13,15 @@ pub enum LexErrorKind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LexError {
     pub kind: LexErrorKind,
-    // pub position: Position,
+    pub position: Position,
 }
 
 impl LexError {
-    pub fn unexpected(c: char /*, position: Position */) -> Self {
-        Self { kind: LexErrorKind::UnexpectedCharacter(c)}
+    pub fn unexpected(c: char, position: Position) -> Self {
+        Self { kind: LexErrorKind::UnexpectedCharacter(c), position }
     }
 
-    pub fn unexpected_eof(/*, position: Position */) -> Self {
-        Self { kind: LexErrorKind::UnexpectedEOF }
+    pub fn unexpected_eof(position: Position) -> Self {
+        Self { kind: LexErrorKind::UnexpectedEOF, position  }
     }
 }

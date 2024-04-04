@@ -1,7 +1,6 @@
 use std::{collections::HashMap, mem, str::FromStr, time::Duration};
 use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
 
-//use super::{parse::Value, validate::{Item, ValidatedSchemas, ValidatedAttributes}};
 use super::parser::nodes::{
     StructuralNode,
     Schema,
@@ -183,6 +182,7 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
 
                 let attribute = &self.attributes[*index];
 
+                // TODO: Probably best to avoid this
                 self.write_value(attribute, out)?;
             }
             Value::Reference(r) => {

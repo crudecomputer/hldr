@@ -1,11 +1,13 @@
-#[derive(Debug, PartialEq)]
+use crate::v3::Position;
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Keyword {
     As,
     Schema,
     Table,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Symbol {
     AtSign,
     Comma,
@@ -15,8 +17,8 @@ pub enum Symbol {
     Underscore,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Token {
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenKind {
     Bool(bool),
     Identifier(String),
     Keyword(Keyword),
@@ -25,4 +27,10 @@ pub enum Token {
     QuotedIdentifier(String),
     Symbol(Symbol),
     Text(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub position: Position,
 }

@@ -3,8 +3,9 @@
 //  - Add positions to errors
 //  - Better errors
 
+use crate::v3::Position;
 use super::errors::LexError;
-use super::tokens::{Keyword, Symbol, Token};
+use super::tokens::{Keyword, Symbol, Token, TokenKind};
 
 pub const NULL: char = '\0';
 pub const EOF: char = NULL;
@@ -20,13 +21,24 @@ fn defer_to<S: State + 'static>(state: S, ctx: &mut Context, c: char) -> Receive
 }
 
 /// The context accessible for any given state
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Context {
+    current_position: Position,
+    token_start_position: Position,
     stack: Vec<char>,
     tokens: Vec<Token>,
 }
 
 impl Context {
+    pub fn new() -> Self {
+        Self {
+            current_position: Position { line: 1, column: 1 },
+            token_start_position: Position { line: 1, column: 1 },
+            stack: Vec::new(),
+            tokens: Vec::new(),
+        }
+    }
+
     /// Consumes the Context and returns the collected tokens.
     pub fn into_tokens(self) -> Vec<Token> {
         self.tokens
@@ -35,6 +47,33 @@ impl Context {
     /// Drains the stack and returns the contents as a String.
     fn drain_stack(&mut self) -> String {
         self.stack.drain(..).collect()
+    }
+
+    fn add_token(&mut self, kind: TokenKind) {
+        self.tokens.push(Token { kind, position: self.token_start_position });
+    }
+
+    pub fn increment_position(&mut self, c: char) {
+        // FIXME: This does not properly handle `\r\n` sequences, which the Unicode
+        // standard considers a single newline character.
+        if ['\r', '\n'].contains(&c) {
+            self.current_position.line += 1;
+            self.current_position.column = 1;
+        } else {
+            self.current_position.column += 1;
+        }
+
+        if self.stack.is_empty() {
+            self.reset_start();
+        }
+
+        // if c == NULL || is_whitespace(c) {
+        //     self.reset_start();
+        // }
+    }
+
+    pub fn reset_start(&mut self) {
+        self.token_start_position = self.current_position;
     }
 }
 
@@ -56,22 +95,27 @@ pub struct Start;
 impl State for Start {
     fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            NULL => to(Start),
-            '\r' | '\n' => to(AfterReturn),
+            NULL => {
+                to(Start)
+            }
+            '\r' | '\n' => {
+                ctx.add_token(TokenKind::LineSep);
+                to(Start)
+            },
             '(' => {
-                ctx.tokens.push(Token::Symbol(Symbol::ParenLeft));
+                ctx.add_token(TokenKind::Symbol(Symbol::ParenLeft));
                 to(Start)
             }
             ')' => {
-                ctx.tokens.push(Token::Symbol(Symbol::ParenRight));
+                ctx.add_token(TokenKind::Symbol(Symbol::ParenRight));
                 to(Start)
             }
             '@' => {
-                ctx.tokens.push(Token::Symbol(Symbol::AtSign));
+                ctx.add_token(TokenKind::Symbol(Symbol::AtSign));
                 to(Start)
             }
             ',' => {
-                ctx.tokens.push(Token::Symbol(Symbol::Comma));
+                ctx.add_token(TokenKind::Symbol(Symbol::Comma));
                 to(Start)
             }
             '.' => {
@@ -95,7 +139,7 @@ impl State for Start {
             _ if is_whitespace(c) => {
                 to(Start)
             }
-            _ => Err(LexError::unexpected(c)),
+            _ => Err(LexError::unexpected(c, ctx.current_position)),
         }
     }
 }
@@ -111,10 +155,10 @@ impl State for AfterPeriod {
                 defer_to(InFloat, ctx, c)
             }
             _ if self.can_terminate(c) => {
-                ctx.tokens.push(Token::Symbol(Symbol::Period));
+                ctx.add_token(TokenKind::Symbol(Symbol::Period));
                 defer_to(Start, ctx, c)
             }
-            _ => Err(LexError::unexpected(c)),
+            _ => Err(LexError::unexpected(c, ctx.current_position)),
         }
     }
 
@@ -123,23 +167,6 @@ impl State for AfterPeriod {
         // periods are only used in references, meaning they should only
         // be followed by a plain or quoted identifier
         is_identifier_char(c) || c == '"'
-    }
-}
-
-/// State after receiving a carriage return or newline.
-struct AfterReturn;
-
-impl State for AfterReturn {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
-        match c {
-            '\r' | '\n' => {
-                to(AfterReturn)
-            }
-            _ => {
-                ctx.tokens.push(Token::LineSep);
-                defer_to(Start, ctx, c)
-            }
-        }
     }
 }
 
@@ -154,7 +181,7 @@ impl State for AfterSingleDash {
                 ctx.stack.push('-');
                 defer_to(InInteger, ctx, c)
             }
-            _ => Err(LexError::unexpected(c)),
+            _ => Err(LexError::unexpected(c, ctx.current_position)),
         }
     }
 }
@@ -173,7 +200,7 @@ impl State for AfterQuotedIdentifier {
             }
             _ => {
                 let stack = ctx.drain_stack();
-                ctx.tokens.push(Token::QuotedIdentifier(stack));
+                ctx.add_token(TokenKind::QuotedIdentifier(stack));
                 defer_to(Start, ctx, c)
             }
         }
@@ -195,7 +222,7 @@ impl State for AfterText {
             }
             _ => {
                 let stack = ctx.drain_stack();
-                ctx.tokens.push(Token::Text(stack));
+                ctx.add_token(TokenKind::Text(stack));
                 defer_to(Start, ctx, c)
             }
         }
@@ -206,9 +233,12 @@ impl State for AfterText {
 struct InComment;
 
 impl State for InComment {
-    fn receive(&self, _ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
         match c {
-            '\r' | '\n' => to(AfterReturn),
+            '\r' | '\n' => {
+                ctx.add_token(TokenKind::LineSep);
+                to(Start)
+            }
             _ => to(InComment),
         }
     }
@@ -226,25 +256,25 @@ impl State for InFloat {
             }
             // Entering into InFloat means there is already a decimal point in the stack
             '.' => {
-                Err(LexError::unexpected(c))
+                Err(LexError::unexpected(c, ctx.current_position))
             }
             // Underscores can neither be consecutive nor follow a decimal point
             '_' if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
-                Err(LexError::unexpected(c))
+                Err(LexError::unexpected(c, ctx.current_position))
             }
             '_' => {
                 ctx.stack.push(c);
                 to(InFloat)
             }
             _ if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => Err(LexError::unexpected('_')),
+                Some(&'_') => Err(LexError::unexpected('_', ctx.current_position)),
                 _ => {
                     let stack = ctx.drain_stack();
-                    ctx.tokens.push(Token::Number(stack));
+                    ctx.add_token(TokenKind::Number(stack));
                     defer_to(Start, ctx, c)
                 }
             }
-            _ => Err(LexError::unexpected(c)),
+            _ => Err(LexError::unexpected(c, ctx.current_position)),
         }
     }
 }
@@ -262,7 +292,7 @@ impl State for InIdentifier {
             _ => {
                 let stack = ctx.drain_stack();
                 let token = identifier_to_token(stack);
-                ctx.tokens.push(token);
+                ctx.add_token(token);
                 defer_to(Start, ctx, c)
             }
         }
@@ -282,7 +312,7 @@ impl State for InInteger {
             }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
             '_' | '.' if ctx.stack.last() == Some(&'_') => {
-                Err(LexError::unexpected(c))
+                Err(LexError::unexpected(c, ctx.current_position))
             }
             '_' => {
                 ctx.stack.push(c);
@@ -293,14 +323,14 @@ impl State for InInteger {
                 to(InFloat)
             }
             _ if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => Err(LexError::unexpected('_')),
+                Some(&'_') => Err(LexError::unexpected('_', ctx.current_position)),
                 _ => {
                     let stack = ctx.drain_stack();
-                    ctx.tokens.push(Token::Number(stack));
+                    ctx.add_token(TokenKind::Number(stack));
                     defer_to(Start, ctx, c)
                 }
             }
-            _ => Err(LexError::unexpected(c)),
+            _ => Err(LexError::unexpected(c, ctx.current_position)),
         }
     }
 }
@@ -335,15 +365,15 @@ impl State for InText {
     }
 }
 
-fn identifier_to_token(s: String) -> Token {
+fn identifier_to_token(s: String) -> TokenKind {
     match s.as_ref() {
-        "_" => Token::Symbol(Symbol::Underscore),
-        "true" | "t" => Token::Bool(true),
-        "false" | "f" => Token::Bool(false),
-        "as" => Token::Keyword(Keyword::As),
-        "schema" => Token::Keyword(Keyword::Schema),
-        "table" => Token::Keyword(Keyword::Table),
-        _ => Token::Identifier(s),
+        "_" => TokenKind::Symbol(Symbol::Underscore),
+        "true" | "t" => TokenKind::Bool(true),
+        "false" | "f" => TokenKind::Bool(false),
+        "as" => TokenKind::Keyword(Keyword::As),
+        "schema" => TokenKind::Keyword(Keyword::Schema),
+        "table" => TokenKind::Keyword(Keyword::Table),
+        _ => TokenKind::Identifier(s),
     }
 }
 

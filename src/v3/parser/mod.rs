@@ -3,24 +3,27 @@ pub mod nodes;
 mod states;
 
 use errors::*;
-use super::lexer::Token;
+use super::lexer::{Token, TokenKind};
+use crate::v3::Position;
 
 pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, ParseError> {
     let mut context = states::Context::default();
     context.stack.push(states::StackItem::TreeRoot(Box::new(nodes::ParseTree::default())));
     let mut state: Box<dyn states::State> = Box::new(states::Root);
+    let mut last_position = Position { line: 1, column: 1 };
 
     for token in input {
-        println!("state {:?} receiving token {:?}", state, token);
+        last_position = token.position;
         state = state.receive(&mut context, token)?;
     }
 
-    // TODO: Is there a better finalizer token or strategy?
-    state.receive(&mut context, Token::LineSep)?;
+    // TODO: This is something of a hacky way to signal the end of input.
+    let eof_token = Token { kind: TokenKind::LineSep, position: last_position };
+    state.receive(&mut context, eof_token)?;
 
     match context.stack.pop() {
         Some(states::StackItem::TreeRoot(tree)) => Ok(*tree),
-        elt => panic!("Unexpected element on top of final stack: {:?}", elt),
+        _ => Err(ParseError { kind: ParseErrorKind::UnexpectedEOF }),
     }
 }
 
