@@ -244,7 +244,8 @@ pub fn load(transaction: &mut Transaction, tree: ValidatedParseTree) -> LoadResu
     for node in tree.into_inner().nodes {
         match node {
             StructuralNode::Schema(mut schema) => {
-                // TODO: This is a smell
+                // TODO: This is a smell, the name/alias should probably be their own type embedded
+                // in a schema and table
                 let nodes = mem::take(&mut schema.nodes);
 
                 for table in nodes {

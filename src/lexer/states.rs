@@ -1,14 +1,6 @@
-// TODO:
-//  - Add positions to tokens (per v2 tokenizer)
-//  - Add positions to errors
-//  - Better errors
-
 use crate::Position;
 use super::error::LexError;
 use super::tokens::{Keyword, Symbol, Token, TokenKind};
-
-pub const NULL: char = '\0';
-pub const EOF: char = NULL;
 
 type ReceiveResult = Result<Box<dyn State>, LexError>;
 
@@ -16,7 +8,7 @@ fn to<S: State + 'static>(state: S) -> ReceiveResult {
     Ok(Box::new(state))
 }
 
-fn defer_to<S: State + 'static>(state: S, ctx: &mut Context, c: char) -> ReceiveResult {
+fn defer_to<S: State + 'static>(state: S, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
     state.receive(ctx, c)
 }
 
@@ -54,8 +46,6 @@ impl Context {
     }
 
     pub fn increment_position(&mut self, c: char) {
-        // FIXME: This does not properly handle `\r\n` sequences, which the Unicode
-        // standard considers a single newline character.
         if ['\r', '\n'].contains(&c) {
             self.current_position.line += 1;
             self.current_position.column = 1;
@@ -75,13 +65,13 @@ impl Context {
 
 /// A state in the lexer's state machine.
 pub trait State {
-    /// Receives a character and returns the next state.
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult;
+    /// Receives a character (or `None` when EOF) and returns the next state.
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult;
 
     /// Returns whether or not the given character can successfully terminate the current state,
     /// defaulting to only allowing whitespace, newlines, or EOF to terminate.
-    fn can_terminate(&self, c: char) -> bool {
-        is_whitespace(c) || [EOF, '\r', '\n'].contains(&c)
+    fn can_terminate(&self, c: Option<char>) -> bool {
+        c.is_none() || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 
@@ -89,11 +79,13 @@ pub trait State {
 pub struct Start;
 
 impl State for Start {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+        let c = match c {
+            Some(c) => c,
+            None => return to(Start),
+        };
+
         match c {
-            NULL => {
-                to(Start)
-            }
             '\r' | '\n' => {
                 ctx.add_token(TokenKind::LineSep);
                 to(Start)
@@ -127,15 +119,15 @@ impl State for Start {
                 to(InQuotedIdentifier)
             }
             '0'..='9' => {
-                defer_to(InInteger, ctx, c)
+                defer_to(InInteger, ctx, Some(c))
             }
             _ if is_identifier_char(c) => {
-                defer_to(InIdentifier, ctx, c)
+                defer_to(InIdentifier, ctx, Some(c))
             }
             _ if is_whitespace(c) => {
                 to(Start)
             }
-            _ => Err(LexError::unexpected(c, ctx.current_position)),
+            _ => Err(LexError::bad_char(c, ctx.current_position)),
         }
     }
 }
@@ -144,25 +136,31 @@ impl State for Start {
 struct AfterPeriod;
 
 impl State for AfterPeriod {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '0'..='9' => {
+            Some('0'..='9') => {
                 ctx.stack.push('.');
                 defer_to(InFloat, ctx, c)
             }
-            _ if self.can_terminate(c) => {
+            None | Some(_) if self.can_terminate(c) => {
                 ctx.add_token(TokenKind::Symbol(Symbol::Period));
                 defer_to(Start, ctx, c)
             }
-            _ => Err(LexError::unexpected(c, ctx.current_position)),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            _ => unreachable!(),
         }
     }
 
-    fn can_terminate(&self, c: char) -> bool {
+    fn can_terminate(&self, _c: Option<char>) -> bool {
+        // TODO: This was STILL making expectations.
         // Outside of float tokens (which this state does not generate)
         // periods are only used in references, meaning they should only
-        // be followed by a plain or quoted identifier
-        is_identifier_char(c) || c == '"'
+        // be followed by a plain or quoted identifier, but how much
+        // should be forbidden during tokenization? And should references
+        // be allowed to have whitespace between the period and the identifier?
+        //
+        // is_identifier_char(c) || c == '"'
+        true
     }
 }
 
@@ -170,14 +168,15 @@ impl State for AfterPeriod {
 struct AfterSingleDash;
 
 impl State for AfterSingleDash {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '-' => to(InComment),
-            '0'..='9' | '.' => {
+            Some('-') => to(InComment),
+            Some('0'..='9' | '.') => {
                 ctx.stack.push('-');
                 defer_to(InInteger, ctx, c)
             }
-            _ => Err(LexError::unexpected(c, ctx.current_position)),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            None => Err(LexError::eof(ctx.current_position)),
         }
     }
 }
@@ -188,9 +187,9 @@ impl State for AfterSingleDash {
 struct AfterQuotedIdentifier;
 
 impl State for AfterQuotedIdentifier {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '"' => {
+            Some(c @ '"') => {
                 ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
@@ -209,9 +208,9 @@ impl State for AfterQuotedIdentifier {
 struct AfterText;
 
 impl State for AfterText {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '\'' => {
+            Some(c @ '\'') => {
                 ctx.stack.push(c);
                 ctx.stack.push(c);
                 to(InText)
@@ -229,9 +228,9 @@ impl State for AfterText {
 struct InComment;
 
 impl State for InComment {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '\r' | '\n' => {
+            Some(c) if is_newline(c) => {
                 ctx.add_token(TokenKind::LineSep);
                 to(Start)
             }
@@ -244,33 +243,40 @@ impl State for InComment {
 struct InFloat;
 
 impl State for InFloat {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '0'..='9' => {
+            Some(c @ '0'..='9') => {
                 ctx.stack.push(c);
                 to(InFloat)
             }
             // Entering into InFloat means there is already a decimal point in the stack
-            '.' => {
-                Err(LexError::unexpected(c, ctx.current_position))
+            Some('.') => {
+                let stack = ctx.drain_stack();
+                Err(LexError::bad_number(stack, ctx.token_start_position))
             }
             // Underscores can neither be consecutive nor follow a decimal point
-            '_' if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
-                Err(LexError::unexpected(c, ctx.current_position))
+            Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
+                let stack = ctx.drain_stack();
+                Err(LexError::bad_number(stack, ctx.current_position))
             }
-            '_' => {
+            Some(c @ '_') => {
                 ctx.stack.push(c);
                 to(InFloat)
             }
-            _ if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => Err(LexError::unexpected('_', ctx.current_position)),
-                _ => {
-                    let stack = ctx.drain_stack();
-                    ctx.add_token(TokenKind::Number(stack));
-                    defer_to(Start, ctx, c)
+            None | Some(_) if self.can_terminate(c) => {
+                let stack = ctx.drain_stack();
+                match ctx.stack.last() {
+                    Some(&'_') => {
+                        Err(LexError::bad_number(stack, ctx.token_start_position))
+                    }
+                    _ => {
+                        ctx.add_token(TokenKind::Number(stack));
+                        defer_to(Start, ctx, c)
+                    }
                 }
             }
-            _ => Err(LexError::unexpected(c, ctx.current_position)),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            _ => unreachable!(),
         }
     }
 }
@@ -279,9 +285,12 @@ impl State for InFloat {
 struct InIdentifier;
 
 impl State for InIdentifier {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+        // TODO: Should this be more restrictive about what can terminate an identifier?
+        // This does not exclude input like `one@two` or `one'two'` but should those
+        // specifically be forbidden?
         match c {
-            _ if is_identifier_char(c) => {
+            Some(c) if is_identifier_char(c) => {
                 ctx.stack.push(c);
                 to(InIdentifier)
             }
@@ -299,34 +308,39 @@ impl State for InIdentifier {
 struct InInteger;
 
 impl State for InInteger {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
-        // TODO: Better error kind indicating invalid numeric literal
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '0'..='9' => {
+            Some(c @ '0'..='9') => {
                 ctx.stack.push(c);
                 to(InInteger)
             }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
-            '_' | '.' if ctx.stack.last() == Some(&'_') => {
-                Err(LexError::unexpected(c, ctx.current_position))
+            Some('_' | '.') if ctx.stack.last() == Some(&'_') => {
+                let stack = ctx.drain_stack();
+                Err(LexError::bad_number(stack, ctx.token_start_position))
             }
-            '_' => {
+            Some(c @ '_') => {
                 ctx.stack.push(c);
                 to(InInteger)
             }
-            '.' => {
+            Some(c @ '.') => {
                 ctx.stack.push(c);
                 to(InFloat)
             }
-            _ if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => Err(LexError::unexpected('_', ctx.current_position)),
-                _ => {
-                    let stack = ctx.drain_stack();
-                    ctx.add_token(TokenKind::Number(stack));
-                    defer_to(Start, ctx, c)
+            None | Some(_) if self.can_terminate(c) => {
+                let stack = ctx.drain_stack();
+                match ctx.stack.last() {
+                    Some(&'_') => {
+                        Err(LexError::bad_number(stack, ctx.token_start_position))
+                    }
+                    _ => {
+                        ctx.add_token(TokenKind::Number(stack));
+                        defer_to(Start, ctx, c)
+                    }
                 }
             }
-            _ => Err(LexError::unexpected(c, ctx.current_position)),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            _ => unreachable!()
         }
     }
 }
@@ -335,13 +349,14 @@ impl State for InInteger {
 struct InQuotedIdentifier;
 
 impl State for InQuotedIdentifier {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '"' => to(AfterQuotedIdentifier),
-            _ => {
+            Some('"') => to(AfterQuotedIdentifier),
+            Some(c) => {
                 ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
+            None => Err(LexError::eof_unquoted(ctx.current_position)),
         }
     }
 }
@@ -350,13 +365,14 @@ impl State for InQuotedIdentifier {
 struct InText;
 
 impl State for InText {
-    fn receive(&self, ctx: &mut Context, c: char) -> ReceiveResult {
+    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            '\'' => to(AfterText),
-            _ => {
+            Some('\'') => to(AfterText),
+            Some(c) => {
                 ctx.stack.push(c);
                 to(InText)
             }
+            None => Err(LexError::eof_string(ctx.current_position)),
         }
     }
 }
@@ -389,4 +405,8 @@ fn is_identifier_char(c: char) -> bool {
 
 fn is_whitespace(c: char) -> bool {
     c == ' ' || c == '\t'
+}
+
+fn is_newline(c: char) -> bool {
+    ['\r', '\n'].contains(&c)
 }

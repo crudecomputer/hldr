@@ -14,7 +14,6 @@ struct Command {
     #[clap(short = 'f', long = "data-file", name = "DATA-FILE")]
     file: Option<PathBuf>,
 
-    // FIXME: This is not optional actually
     /// Path to the optional .toml options file
     #[clap(short = 'o', long = "opts-file", name = "OPTS-FILE", default_value = "hldr-opts.toml")]
     opts_file: PathBuf,

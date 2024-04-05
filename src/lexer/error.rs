@@ -4,22 +4,32 @@ use crate::Position;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LexErrorKind {
-    // ExpectedComment,
-    // ExpectedNumber,
-    // UnclosedQuotedIdentifier,
-    // UnclosedString,
+    InvalidNumericLiteral(String),
+    UnclosedQuotedIdentifier,
+    UnclosedString,
     UnexpectedEOF,
     UnexpectedCharacter(char),
 }
 
 impl fmt::Display for LexErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use LexErrorKind::*;
+
         match self {
-            LexErrorKind::UnexpectedEOF => {
+            InvalidNumericLiteral(n) => {
+                write!(f, "invalid numeric literal `{}`", n)
+            }
+            UnclosedQuotedIdentifier => {
+                write!(f, "unclosed quoted identifier starting")
+            }
+            UnclosedString => {
+                write!(f, "unclosed string starting")
+            }
+            UnexpectedEOF => {
                 write!(f, "unexpected end of file")
             }
-            LexErrorKind::UnexpectedCharacter(c) => {
-                write!(f, "unexpected character '{}'", c)
+            UnexpectedCharacter(c) => {
+                write!(f, "unexpected character `{}`", c)
             }
         }
     }
@@ -32,12 +42,24 @@ pub struct LexError {
 }
 
 impl LexError {
-    pub fn unexpected(c: char, position: Position) -> Self {
+    pub(crate) fn bad_char(c: char, position: Position) -> Self {
         Self { kind: LexErrorKind::UnexpectedCharacter(c), position }
     }
 
-    pub fn unexpected_eof(position: Position) -> Self {
+    pub(crate) fn bad_number(n: String, position: Position) -> Self {
+        Self { kind: LexErrorKind::InvalidNumericLiteral(n), position }
+    }
+
+    pub(crate) fn eof(position: Position) -> Self {
         Self { kind: LexErrorKind::UnexpectedEOF, position  }
+    }
+
+    pub(crate) fn eof_unquoted(position: Position) -> Self {
+        Self { kind: LexErrorKind::UnclosedQuotedIdentifier, position  }
+    }
+
+    pub(crate) fn eof_string(position: Position) -> Self {
+        Self { kind: LexErrorKind::UnclosedString, position  }
     }
 }
 

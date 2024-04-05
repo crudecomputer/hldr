@@ -3,8 +3,13 @@ TODO
 - Verify that aliases are not reused across *different* entities
 - Update analyzer so that this can't happen:
 
-    table t1 ()
-    table table1 as t1 ()
+    - Alias same as another table name
+        table t1 ()
+        table table1 as t1 ()
+
+    - Different tables have same alias
+        table table1 as t ()
+        table table2 as t ()
 */
 pub mod error;
 

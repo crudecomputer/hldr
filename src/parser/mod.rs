@@ -196,7 +196,6 @@ mod tests {
                             alias: Some("t".to_owned()),
                             name: "mytable".to_owned(),
                             nodes: Vec::new(),
-                            schema: None, // FIXME: Should this field exist? If so, populate it.
                         },
                     ],
                 })),

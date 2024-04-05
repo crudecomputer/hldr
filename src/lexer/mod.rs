@@ -10,13 +10,11 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
     let mut state: Box<dyn states::State> = Box::new(states::Start);
 
     for c in input {
-        state = state.receive(&mut context, c)?;
+        state = state.receive(&mut context, Some(c))?;
         context.increment_position(c);
     }
 
-    if let Err(LexError { position, .. }) = state.receive(&mut context, states::EOF) {
-        return Err(LexError::unexpected_eof(position));
-    }
+    state.receive(&mut context, None)?;
 
     Ok(context.into_tokens())
 }
@@ -115,10 +113,10 @@ mod tests {
     #[test]
     fn test_malformed_numbers() {
         for input in ["1.1. ", ".1.1 ", "12_.34"] {
-            assert_eq!(tokenize(input.chars()), Err(LexError::unexpected('.')));
+            assert_eq!(tokenize(input.chars()), Err(LexError::bad_char('.')));
         }
         for input in ["123_ ", "12__34", "12._34", "12.34_ "] {
-            assert_eq!(tokenize(input.chars()), Err(LexError::unexpected('_')));
+            assert_eq!(tokenize(input.chars()), Err(LexError::bad_char('_')));
         }
     }
 
@@ -165,7 +163,7 @@ mod tests {
     #[test]
     fn test_symbols_followed_by_whitespace() {
         for input in ["one. ", "\"two\". ", /*"three@ ", "\"four\"@ "*/] {
-            assert_eq!(tokenize(input.chars()), Err(LexError::unexpected(' ')));
+            assert_eq!(tokenize(input.chars()), Err(LexError::bad_char(' ')));
         }
     }
 }
