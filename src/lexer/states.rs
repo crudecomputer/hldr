@@ -288,7 +288,7 @@ impl State for InIdentifier {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         // TODO: Should this be more restrictive about what can terminate an identifier?
         // This does not exclude input like `one@two` or `one'two'` but should those
-        // specifically be forbidden?
+        // specifically be forbidden? How much should lexer do?
         match c {
             Some(c) if is_identifier_char(c) => {
                 ctx.stack.push(c);

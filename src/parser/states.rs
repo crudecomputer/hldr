@@ -11,14 +11,14 @@ use super::nodes;
 type ParseResult = Result<Box<dyn State>, ParseError>;
 
 pub trait State: std::fmt::Debug {
-    fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult;
+    fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult;
 }
 
 fn to<S: State + 'static>(state: S) -> ParseResult {
     Ok(Box::new(state))
 }
 
-fn defer_to<S: State + 'static>(state: &mut S, ctx: &mut Context, t: Token) -> ParseResult {
+fn defer_to<S: State + 'static>(state: &mut S, ctx: &mut Context, t: Option<Token>) -> ParseResult {
     state.receive(ctx, t)
 }
 
@@ -143,9 +143,17 @@ impl Context {
 pub struct Root;
 
 impl State for Root {
-    fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+    fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
+        // TODO: There are a few general patterns that have emerged in the states:
+        //   - How to handle `None`
+        //   - The error type to return as default case for unexpected token
+        //
+        // These are good indicators that the State trait & usage could be refined
+        let t = match t {
+            Some(t) => t,
+            None => return to(Root),
+        };
         match t.kind {
-            // TODO: An explicit "EOF" token would likely be better
             TokenKind::LineSep => {
                 to(Root)
             }
@@ -155,7 +163,7 @@ impl State for Root {
             TokenKind::Keyword(Keyword::Table) => {
                 to(table_states::DeclaringTable)
             }
-            _ => Err(ParseError::unexpected(t)),
+            _ => Err(ParseError::token(t)),
         }
     }
 }
@@ -168,12 +176,16 @@ mod schema_states {
     pub struct DeclaringSchema;
 
     impl State for DeclaringSchema {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
                     to(ReceivedSchemaName(ident))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_schema(t)),
             }
         }
     }
@@ -183,9 +195,12 @@ mod schema_states {
     struct ReceivedSchemaName(String);
 
     impl State for ReceivedSchemaName {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let schema_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Keyword(Keyword::As) => {
                     to(DeclaringSchemaAlias(schema_name))
@@ -194,7 +209,7 @@ mod schema_states {
                     ctx.push_schema(schema_name, None);
                     to(InSchemaScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::alias_or_scope(t)),
             }
         }
     }
@@ -204,15 +219,18 @@ mod schema_states {
     struct DeclaringSchemaAlias(String);
 
     impl State for DeclaringSchemaAlias {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let schema_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 // Unlike the true database name, aliases do not support quoted identifiers
                 TokenKind::Identifier(ident) => {
                     to(ReceivedSchemaAlias(schema_name, ident))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_alias(t)),
             }
         }
     }
@@ -221,7 +239,11 @@ mod schema_states {
     struct ReceivedSchemaAlias(String, String);
 
     impl State for ReceivedSchemaAlias {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     let schema_name = mem::take(&mut self.0);
@@ -229,7 +251,7 @@ mod schema_states {
                     ctx.push_schema(schema_name, Some(alias));
                     to(InSchemaScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_scope(t)),
             }
         }
     }
@@ -238,7 +260,11 @@ mod schema_states {
     pub struct InSchemaScope;
 
     impl State for InSchemaScope {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenRight) => {
                     let schema = ctx.pop_schema_or_panic();
@@ -251,7 +277,7 @@ mod schema_states {
                 TokenKind::LineSep => {
                     to(InSchemaScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::in_schema(t)),
             }
         }
     }
@@ -265,12 +291,16 @@ mod table_states {
     pub struct DeclaringTable;
 
     impl State for DeclaringTable {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
                     to(ReceivedTableName(ident))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_table(t)),
             }
         }
     }
@@ -280,9 +310,12 @@ mod table_states {
     struct ReceivedTableName(String);
 
     impl State for ReceivedTableName {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let table_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Keyword(Keyword::As) => {
                     to(DeclaringTableAlias(table_name))
@@ -291,7 +324,7 @@ mod table_states {
                     ctx.push_table(table_name, None);
                     to(InTableScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::alias_or_scope(t)),
             }
         }
     }
@@ -300,14 +333,17 @@ mod table_states {
     struct DeclaringTableAlias(String);
 
     impl State for DeclaringTableAlias {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let table_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Identifier(ident) => {
                     to(ReceivedTableAlias(table_name, ident))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_alias(t)),
             }
         }
     }
@@ -316,7 +352,11 @@ mod table_states {
     struct ReceivedTableAlias(String, String);
 
     impl State for ReceivedTableAlias {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     let table_name = mem::take(&mut self.0);
@@ -324,7 +364,7 @@ mod table_states {
                     ctx.push_table(table_name, Some(alias));
                     to(InTableScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_scope(t)),
             }
         }
     }
@@ -333,7 +373,11 @@ mod table_states {
     pub struct InTableScope;
 
     impl State for InTableScope {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenRight) => {
                     let table = ctx.pop_table_or_panic();
@@ -356,7 +400,7 @@ mod table_states {
                 TokenKind::LineSep => {
                     to(InTableScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::in_table(t)),
             }
         }
     }
@@ -370,15 +414,18 @@ mod record_states {
     pub struct ReceivedRecordName(pub String);
 
     impl State for ReceivedRecordName {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let record_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     ctx.push_record(Some(record_name));
                     to(InRecordScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_scope(t)),
             }
         }
     }
@@ -388,13 +435,17 @@ mod record_states {
     pub struct ReceivedExplicitAnonymousRecord;
 
     impl State for ReceivedExplicitAnonymousRecord {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     ctx.push_record(None);
                     to(InRecordScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_scope(t)),
             }
         }
     }
@@ -403,7 +454,11 @@ mod record_states {
     pub struct InRecordScope;
 
     impl State for InRecordScope {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenRight) => {
                     let record = ctx.pop_record_or_panic();
@@ -416,7 +471,7 @@ mod record_states {
                 TokenKind::LineSep => {
                     to(InRecordScope)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::in_record(t)),
             }
         }
     }
@@ -437,9 +492,12 @@ mod attribute_states {
     pub struct ReceivedAttributeName(pub String);
 
     impl State for ReceivedAttributeName {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let attribute_name = mem::take(&mut self.0);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Bool(b) => {
                     let value = nodes::Value::Bool(b);
@@ -459,7 +517,7 @@ mod attribute_states {
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_value(t)),
             }
         }
     }
@@ -468,16 +526,19 @@ mod attribute_states {
     pub struct ReceivedReferenceStart(pub String);
 
     impl State for ReceivedReferenceStart {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let attribute_name = mem::take(&mut self.0);
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             let quoted = if let &TokenKind::QuotedIdentifier(_) = &t.kind { true } else { false };
-
             match t.kind {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
                     let identifiers = vec![Identifier { quoted, value: ident }];
                     to(ReceivedReferenceIdentifier(attribute_name, identifiers))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_ident(t)),
             }
         }
     }
@@ -486,15 +547,20 @@ mod attribute_states {
     pub struct ReceivedReferenceIdentifier(String, Vec<Identifier>);
 
     impl State for ReceivedReferenceIdentifier {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let attribute_name = mem::take(&mut self.0);
             let mut identifiers = mem::take(&mut self.1);
-
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
                 TokenKind::Symbol(Symbol::Period) if identifiers.len() < 4 => {
                     to(ReceivedReferenceSeparator(attribute_name, identifiers))
                 }
-                TokenKind::LineSep | TokenKind::Symbol(Symbol::Comma) | TokenKind::Symbol(Symbol::ParenRight) if identifiers.len() < 5 => {
+                TokenKind::LineSep
+                | TokenKind::Symbol(Symbol::Comma)
+                | TokenKind::Symbol(Symbol::ParenRight) if identifiers.len() < 5 => {
                     let (column, record, table, schema) = (
                         // In this state there should always be at least one identifier
                         identifiers.pop().expect("expected element"),
@@ -502,8 +568,8 @@ mod attribute_states {
                         identifiers.pop(),
                         identifiers.pop(),
                     );
-                    if let &Some(Identifier{ quoted: true, .. }) = &record {
-                        return Err(ParseError::unexpected(t));
+                    if let Some(Identifier{ quoted: true, value }) = &record {
+                        return Err(ParseError::rec_quot(value.to_owned()));
                     }
                     // The reference value node has no concept of whether or not the original
                     // token was quoted or not
@@ -522,11 +588,11 @@ mod attribute_states {
                     // TODO: This pattern is getting a bit gross. There needs to be a cleaner way of ending,
                     // since all values need to handle this line sep/comma/paren pattern.
                     match t.kind {
-                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, t),
+                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, Some(t)),
                         _ => to(record_states::InRecordScope),
                     }
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::token(t)),
             }
         }
     }
@@ -535,13 +601,17 @@ mod attribute_states {
     pub struct ReceivedReferenceSeparator(String, Vec<Identifier>);
 
     impl State for ReceivedReferenceSeparator {
-        fn receive(&mut self, _ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
             // TODO: This is probably code smell at this point. Since the context
             // already makes so many assumptions about what is on its stack and
             // panics if items are wrong, should these all just be pushing to the
             // `ctx.stack_items` and popping off each step?
             let attribute_name = mem::take(&mut self.0);
             let mut identifiers = mem::take(&mut self.1);
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             let quoted = if let TokenKind::QuotedIdentifier(_) = &t.kind { true } else { false };
 
             // Quoted identifiers are allowed in schema, table, and columns
@@ -561,7 +631,7 @@ mod attribute_states {
                     identifiers.push(Identifier { quoted, value: ident });
                     to(ReceivedReferenceIdentifier(attribute_name, identifiers))
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_ident(t)),
             }
         }
     }
@@ -570,18 +640,24 @@ mod attribute_states {
     pub struct ReceivedAttributeValue;
 
     impl State for ReceivedAttributeValue {
-        fn receive(&mut self, ctx: &mut Context, t: Token) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
+            let t = match t {
+                Some(t) => t,
+                None => return Err(ParseError::eof()),
+            };
             match t.kind {
-                TokenKind::Symbol(Symbol::Comma) | TokenKind::LineSep | TokenKind::Symbol(Symbol::ParenRight) => {
+                TokenKind::Symbol(Symbol::Comma)
+                | TokenKind::LineSep
+                | TokenKind::Symbol(Symbol::ParenRight) => {
                     let attribute = ctx.pop_attribute_or_panic();
                     ctx.push_attribute_to_record_or_panic(attribute);
 
                     match t.kind {
-                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, t),
+                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, Some(t)),
                         _ => to(record_states::InRecordScope),
                     }
                 }
-                _ => Err(ParseError::unexpected(t)),
+                _ => Err(ParseError::exp_close(t)),
             }
         }
     }

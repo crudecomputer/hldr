@@ -2,8 +2,7 @@ pub mod error;
 pub mod nodes;
 mod states;
 
-use crate::Position;
-use super::lexer::tokens::{Token, TokenKind};
+use super::lexer::tokens::Token;
 
 use error::{ParseError, ParseErrorKind};
 
@@ -11,16 +10,12 @@ pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, Par
     let mut context = states::Context::default();
     context.stack.push(states::StackItem::TreeRoot(Box::new(nodes::ParseTree::default())));
     let mut state: Box<dyn states::State> = Box::new(states::Root);
-    let mut last_position = Position { line: 1, column: 1 };
 
     for token in input {
-        last_position = token.position;
-        state = state.receive(&mut context, token)?;
+        state = state.receive(&mut context, Some(token))?;
     }
 
-    // TODO: This is something of a hacky way to signal the end of input.
-    let eof_token = Token { kind: TokenKind::LineSep, position: last_position };
-    state.receive(&mut context, eof_token)?;
+    state.receive(&mut context, None)?;
 
     match context.stack.pop() {
         Some(states::StackItem::TreeRoot(tree)) => Ok(*tree),
