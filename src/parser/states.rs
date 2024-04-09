@@ -569,7 +569,7 @@ mod attribute_states {
                         identifiers.pop(),
                     );
                     if let Some(Identifier{ quoted: true, value }) = &record {
-                        return Err(ParseError::rec_quot(value.to_owned()));
+                        return Err(ParseError::rec_quot(value.to_owned(), t.position));
                     }
                     // The reference value node has no concept of whether or not the original
                     // token was quoted or not
@@ -657,7 +657,7 @@ mod attribute_states {
                         _ => to(record_states::InRecordScope),
                     }
                 }
-                _ => Err(ParseError::exp_close(t)),
+                _ => Err(ParseError::exp_close_attr(t)),
             }
         }
     }

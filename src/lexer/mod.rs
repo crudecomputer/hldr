@@ -16,7 +16,8 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
 
     state.receive(&mut context, None)?;
 
-    Ok(context.into_tokens())
+    let tokens = context.into_tokens();
+    Ok(tokens)
 }
 
 #[cfg(test)]
