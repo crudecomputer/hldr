@@ -1,11 +1,11 @@
 pub mod error;
 
-use std::{collections::HashMap, mem, str::FromStr, time::Duration};
+use std::{collections::HashMap, str::FromStr, time::Duration};
 use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
 use crate::analyzer::ValidatedParseTree;
 use crate::parser::nodes::{
     StructuralNode,
-    Schema,
+    StructuralIdentity,
     Table,
     Reference,
     Attribute,
@@ -43,22 +43,24 @@ impl<'a, 'b> Loader<'a, 'b> {
         Self { refmap: HashMap::new(), transaction }
     }
 
-    fn load_table(&mut self, schema: Option<&Schema>, table: &Table) -> LoadResult<()> {
+    fn load_table(&mut self, schema: Option<&StructuralIdentity>, table: &Table) -> LoadResult<()> {
         // TODO: A lot of this is copy-pasta from analyzer
         //
         // *something something* visitor pattern
         let qualified_table_name = match schema {
-            Some(schema) => format!(r#""{}"."{}""#, schema.name, table.name),
-            None => format!(r#""{}""#, table.name),
+            Some(schema) => format!(r#""{}"."{}""#, schema.name, table.identity.name),
+            None => format!(r#""{}""#, table.identity.name),
         };
-
-        let table_scope = match schema {
-            Some(schema) => format!(
-                "{}.{}",
-                schema.alias.as_ref().unwrap_or(&schema.name),
-                table.alias.as_ref().unwrap_or(&table.name),
-            ),
-            None => table.alias.as_ref().unwrap_or(&table.name).to_owned(),
+        let table_scope = {
+            let scope = table.identity.alias.as_ref().unwrap_or(&table.identity.name);
+            match schema {
+                Some(schema) => format!(
+                    "{}.{}",
+                    schema.alias.as_ref().unwrap_or(&schema.name),
+                    scope,
+                ),
+                None => scope.to_owned(),
+            }
         };
 
         for record in &table.nodes {
@@ -68,7 +70,7 @@ impl<'a, 'b> Loader<'a, 'b> {
                 let key = format!("{}.{}", table_scope, name);
 
                 if self.refmap.insert(key, row).is_some() {
-                    panic!("duplicate record in table {}: {}", table.name, name);
+                    panic!("duplicate record in table {}: {}", table_scope, name);
                 }
             }
         }
@@ -177,7 +179,7 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
 
                 let attribute = &self.attributes[*index];
 
-                // TODO: Probably best to avoid this
+                // TODO: Probably best to avoid the recursion
                 self.write_value(attribute, out)?;
             }
             Value::Reference(r) => {
@@ -243,13 +245,10 @@ pub fn load(transaction: &mut Transaction, tree: ValidatedParseTree) -> LoadResu
 
     for node in tree.into_inner().nodes {
         match node {
-            StructuralNode::Schema(mut schema) => {
-                // TODO: This is a smell, the name/alias should probably be their own type embedded
-                // in a schema and table
-                let nodes = mem::take(&mut schema.nodes);
-
-                for table in nodes {
-                    loader.load_table(Some(&schema), &table)?;
+            StructuralNode::Schema(schema) => {
+                let identity = schema.identity;
+                for table in schema.nodes {
+                    loader.load_table(Some(&identity), &table)?;
                 }
             }
             StructuralNode::Table(table) => {

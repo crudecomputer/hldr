@@ -50,25 +50,28 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
 }
 
 fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) -> Result<(), AnalyzeError> {
-    let scope_name = match schema {
-        Some(schema) => format!(
-            "{}.{}",
-            schema.alias.as_ref().unwrap_or(&schema.name),
-            table.alias.as_ref().unwrap_or(&table.name),
-        ),
-        None => table.alias.as_ref().unwrap_or(&table.name).to_owned(),
+    // TODO: This is mostly copy-pasta
+    let table_scope = {
+        let scope = table.identity.alias.as_ref().unwrap_or(&table.identity.name);
+        match schema {
+            Some(schema) => format!(
+                "{}.{}",
+                schema.identity.alias.as_ref().unwrap_or(&schema.identity.name),
+                scope,
+            ),
+            None => scope.to_owned(),
+        }
     };
-
     for record in &table.nodes {
-        analyze_record(record, &refset, &scope_name)?;
+        analyze_record(record, &refset, &table_scope)?;
 
         if let Some(name) = &record.name {
-            let key = format!("{}.{}", scope_name, name);
+            let key = format!("{}.{}", table_scope, name);
 
             if !refset.insert(key) {
                 return Err(AnalyzeError {
                     kind: AnalyzeErrorKind::DuplicateRecord {
-                        scope: scope_name,
+                        scope: table_scope,
                         record: name.clone(),
                     },
                 });

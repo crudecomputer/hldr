@@ -10,28 +10,40 @@ pub enum StructuralNode {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Schema {
+pub struct StructuralIdentity {
     pub alias: Option<String>,
     pub name: String,
+}
+
+impl StructuralIdentity {
+    pub fn new(name: String, alias: Option<String>) -> Self {
+        Self { alias, name }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Schema {
+    pub identity: StructuralIdentity,
     pub nodes: Vec<Table>,
 }
 
 impl Schema {
     pub fn new(name: String, alias: Option<String>) -> Self {
-        Self { alias, name, nodes: Vec::new() }
+        let identity = StructuralIdentity::new(name, alias);
+        Self { identity, nodes: Vec::new() }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Table {
-    pub alias: Option<String>,
-    pub name: String,
+    pub identity: StructuralIdentity,
     pub nodes: Vec<Record>,
 }
 
 impl Table {
     pub fn new(name: String, alias: Option<String>) -> Self {
-        Self { alias, name, nodes: Vec::new() }
+        let identity = StructuralIdentity::new(name, alias);
+        Self { identity, nodes: Vec::new() }
     }
 }
 
@@ -62,7 +74,6 @@ impl Attribute {
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Bool(bool),
-    // TODO: Remove boxes on strings, overoptimization
     Number(Box<String>),
     Reference(Box<Reference>),
     Text(Box<String>),

@@ -3,7 +3,6 @@ use std::fmt;
 use crate::Position;
 use crate::lexer::tokens::Token;
 
-// TODO: These need positions
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorKind {
     UnexpectedEOF,
