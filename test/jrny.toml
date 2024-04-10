@@ -1,6 +1,0 @@
-[revisions]
-directory = "revisions"
-
-[table]
-schema = "public"
-name = "jrny_revision"

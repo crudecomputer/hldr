@@ -1,0 +1,41 @@
+-- Tables can be explicitly nested within a schema
+schema myschema (
+  table user ()
+)
+
+-- Or they can be defined at the top level and rely on search_path for discovery
+table user()
+
+-- Records only need to specify required columns, allowing the database
+-- to populate any default values
+table mytable (
+
+  -- Records can be given names that must be unique within their parent table scope
+  myrecord (
+    col1 true                 -- Supported literal values include bools, numbers, and text strings
+    col2 123_456.987_654      -- Numbers can be formatted for readability
+    col3 'isn''t this grand?' -- Single quotes in text strings are escaped as they are in SQL
+    col4 '123.456.789'        -- Any type with a text representation, eg. ltree, can be expressed
+                              -- as a string literal much as they would be in SQL
+  )
+
+  -- Or they can be anonymous, with or without the `_` identifier
+  _ (
+    col1 false
+  )
+  (
+    col1 true
+  )
+
+  -- All records can also be collapsed on a single line
+  rec (col1 true, col2 123, col3 'hello')
+  _ (col1 true, col2 37)
+  (col1 false, col3 'nifty, right?')
+)
+
+-- Quoted identifiers are supported as well, when necessary
+schema "bad.schema.name" as s1 (
+  table "bad.table.name" as t1 (
+    "bad.column.name" 123
+  )
+)

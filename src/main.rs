@@ -8,7 +8,7 @@ use clap::{crate_version, Parser};
 struct Command {
     /// Commit the transaction
     #[clap(long = "commit")]
-    commit: bool,
+    commit: Option<bool>,
 
     /// Path to the .hldr data file to load [default: place.hldr if not specified in options file]
     #[clap(short = 'f', long = "data-file", name = "DATA-FILE")]
@@ -40,8 +40,14 @@ fn main() {
             options.database_conn = dc.clone();
         }
 
+        if let Some(commit) = cmd.commit {
+            options.commit = commit;
+        }
+
         options
     };
 
-    hldr::place(&options, cmd.commit).unwrap();
+    if let Err(e) = hldr::place(&options) {
+        eprintln!("Error: {}", e);
+    }
 }

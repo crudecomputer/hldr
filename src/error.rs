@@ -1,11 +1,13 @@
-use std::{error::Error, fmt};
+use std::error::Error;
+use std::fmt;
+use std::io;
+use postgres;
 
-use postgres::error::Error as PostgresError;
-
-use crate::{lex, load, parse, validate};
+use crate::{analyzer, lexer, loader, parser};
 
 #[derive(Debug)]
 pub enum HldrErrorKind {
+    IoError,
     LexError,
     ParseError,
     ValidateError,
@@ -16,12 +18,30 @@ pub enum HldrErrorKind {
 
 #[derive(Debug)]
 pub struct HldrError {
-    kind: HldrErrorKind,
-    error: Box<dyn Error>,
+    pub kind: HldrErrorKind,
+    pub error: Box<dyn Error>,
 }
 
-impl From<lex::LexError> for HldrError {
-    fn from(error: lex::LexError) -> Self {
+impl From<io::Error> for HldrError {
+    fn from(error: io::Error) -> Self {
+        HldrError {
+            kind: HldrErrorKind::IoError,
+            error: Box::new(error),
+        }
+    }
+}
+
+impl From<postgres::error::Error> for HldrError {
+    fn from(error: postgres::error::Error) -> Self {
+        HldrError {
+            kind: HldrErrorKind::GeneralDatabaseError,
+            error: Box::new(error),
+        }
+    }
+}
+
+impl From<lexer::error::LexError> for HldrError {
+    fn from(error: lexer::error::LexError) -> Self {
         HldrError {
             kind: HldrErrorKind::LexError,
             error: Box::new(error),
@@ -29,8 +49,8 @@ impl From<lex::LexError> for HldrError {
     }
 }
 
-impl From<parse::ParseError> for HldrError {
-    fn from(error: parse::ParseError) -> Self {
+impl From<parser::error::ParseError> for HldrError {
+    fn from(error: parser::error::ParseError) -> Self {
         HldrError {
             kind: HldrErrorKind::ParseError,
             error: Box::new(error),
@@ -38,8 +58,8 @@ impl From<parse::ParseError> for HldrError {
     }
 }
 
-impl From<validate::ValidateError> for HldrError {
-    fn from(error: validate::ValidateError) -> Self {
+impl From<analyzer::error::AnalyzeError> for HldrError {
+    fn from(error: analyzer::error::AnalyzeError) -> Self {
         HldrError {
             kind: HldrErrorKind::ValidateError,
             error: Box::new(error),
@@ -47,8 +67,8 @@ impl From<validate::ValidateError> for HldrError {
     }
 }
 
-impl From<load::ClientError> for HldrError {
-    fn from(error: load::ClientError) -> Self {
+impl From<loader::error::ClientError> for HldrError {
+    fn from(error: loader::error::ClientError) -> Self {
         HldrError {
             kind: HldrErrorKind::ClientError,
             error: Box::new(error),
@@ -56,19 +76,10 @@ impl From<load::ClientError> for HldrError {
     }
 }
 
-impl From<load::LoadError> for HldrError {
-    fn from(error: load::LoadError) -> Self {
+impl From<loader::error::LoadError> for HldrError {
+    fn from(error: loader::error::LoadError) -> Self {
         HldrError {
             kind: HldrErrorKind::LoadError,
-            error: Box::new(error),
-        }
-    }
-}
-
-impl From<PostgresError> for HldrError {
-    fn from(error: PostgresError) -> Self {
-        HldrError {
-            kind: HldrErrorKind::GeneralDatabaseError,
             error: Box::new(error),
         }
     }

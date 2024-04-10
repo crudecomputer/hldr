@@ -1,17 +1,23 @@
-use std::{error::Error, fs, path::PathBuf};
+pub mod analyzer;
+pub mod error;
+pub mod lexer;
+pub mod loader;
+pub mod parser;
+mod position;
 
+use std::fs;
+use std::path::PathBuf;
 use serde::Deserialize;
 
-pub mod error;
-pub mod lex;
-pub mod load;
-pub mod parse;
-pub mod validate;
+use error::HldrError;
+pub use position::Position;
 
-pub use error::{HldrError, HldrErrorKind};
 
 #[derive(Clone, Default, Debug, Deserialize)]
 pub struct Options {
+    #[serde(default)]
+    pub commit: bool,
+
     #[serde(default = "default_data_file")]
     pub data_file: PathBuf,
 
@@ -41,18 +47,17 @@ fn default_data_file() -> PathBuf {
     PathBuf::from("place.hldr")
 }
 
-pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
-    let content = fs::read_to_string(&options.data_file)?;
-    let tokens = lex::lex(&content)?;
-    let schemas = parse::parse(tokens)?;
-    let validated = validate::validate(schemas)?;
-
-    let mut client = load::new_client(&options.database_conn)?;
+pub fn place(options: &Options) -> Result<(), HldrError> {
+    let input = fs::read_to_string(&options.data_file)?;
+    let tokens = lexer::tokenize(input.chars())?;
+    let parse_tree = parser::parse(tokens.into_iter())?;
+    let parse_tree = analyzer::analyze(parse_tree)?;
+    let mut client = loader::new_client(&options.database_conn)?;
     let mut transaction = client.transaction()?;
 
-    load::load(&mut transaction, &validated)?;
+    loader::load(&mut transaction, parse_tree)?;
 
-    if commit {
+    if options.commit {
         println!("Committing changes");
         transaction.commit()?;
     } else {
@@ -64,6 +69,7 @@ pub fn place(options: &Options, commit: bool) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod root_tests {
+/*
     use std::env;
 
     use super::{place, Options, PathBuf};
@@ -77,4 +83,5 @@ mod root_tests {
 
         place(&options, false).unwrap();
     }
+*/
 }

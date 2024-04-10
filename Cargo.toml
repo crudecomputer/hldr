@@ -19,3 +19,4 @@ features = ["derive"]
 [dev-dependencies]
 chrono = "0.4.19"
 postgres = {version = "0.19.3", features = ["with-chrono-0_4"] }
+pretty_assertions = "1.2.1"
