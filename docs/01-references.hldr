@@ -1,0 +1,38 @@
+-- A record can use a column reference to reuse the same value as another declared column,
+-- which is probably only questionably useful at best.
+table mytable (
+  record (col1 true, col2 @col1)
+)
+
+-- The real power of references comes from referring to named records from any scope
+schema one_schema (
+  table one_table (
+    one_record (mycolumn 'some absolutely beautiful and amazing prose')
+
+    -- References to a record in the same scope only require the record & column names
+    (mycolumn @one_record.mycolumn)
+  )
+)
+-- References to records from within different scopes requires full qualification
+table another_table (
+
+  -- If the original scope was explicitly qualified to a schema, the schema name is mandatory
+  another_record (col @one_schema.one_table.myrecord.mycolumn)
+)
+table yet_another_table (
+
+  -- But if the named record is from a top-level table, no schema is necessary
+  (col @another_table.another_record.col)
+)
+
+-- But how annoying were those references to read and write?
+-- Schemas and tables can both be aliased to make for shorter references.
+schema this_is_a_long_schema_name as s1 (
+  table this_is_a_long_table_name as t1 (
+    rec1 (col 'text')
+  )
+)
+table t2 (
+  -- Note: Different tables can reuse the same record names without conflict
+  rec1 ( col1 @s1.t1.rec1.col)
+)
