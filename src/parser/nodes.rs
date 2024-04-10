@@ -79,6 +79,9 @@ pub enum Value {
     Text(Box<String>),
 }
 
+// TODO: This should be handled by an enum, because this structure doesn't forbid
+// having a schema BUT not having a table, etc. and invalid situations should not
+// be representable.
 #[derive(Debug, PartialEq)]
 pub struct Reference {
     pub schema: Option<String>,

@@ -10,6 +10,16 @@ TODO
     - Different tables have same alias
         table table1 as t ()
         table table2 as t ()
+
+- What about situations like..
+
+    table t1 (
+        rec1 ()
+    )
+    table t2 (
+        (col t1.rec1.col)
+        (col "t1".rec1."col")
+    )
 */
 pub mod error;
 

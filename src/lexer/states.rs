@@ -269,7 +269,7 @@ impl State for InFloat {
             }
             // Underscores can neither be consecutive nor follow a decimal point
             Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
-                let stack = ctx.drain_stack();
+                ctx.clear_stack();
                 Err(LexError::bad_char('_', ctx.current_position))
             }
             Some(c @ '_') => {
@@ -292,6 +292,11 @@ impl State for InFloat {
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!(),
         }
+    }
+
+    fn can_terminate(&self, c: Option<char>) -> bool {
+        // TODO: This is another indication that the `can_terminate` logic needs overhauling
+        c.is_none() || matches!(c, Some(')')) || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 
@@ -356,6 +361,11 @@ impl State for InInteger {
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!()
         }
+    }
+
+    fn can_terminate(&self, c: Option<char>) -> bool {
+        // TODO: This is another indication that the `can_terminate` logic needs overhauling
+        c.is_none() || matches!(c, Some(')')) || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 

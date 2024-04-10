@@ -25,10 +25,16 @@ pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, Par
 
 #[cfg(test)]
 mod tests {
-    /*
-    use crate::v3::lexer::{Keyword as Kwd, Symbol as Sym, Token as Tkn};
-    use super::nodes::*;
-    use super::*;
+    use crate::lexer::tokenize;
+    use crate::lexer::tokens::Token;
+    use crate::parser::nodes::*;
+    use super::parse;
+
+    fn tokens(input: &str) -> impl Iterator<Item = Token> {
+        tokenize(input.chars())
+            .unwrap()
+            .into_iter()
+    }
 
     #[test]
     fn test_empty_input() {
@@ -38,395 +44,477 @@ mod tests {
 
     #[test]
     fn test_empty_schema() {
+        /*
+        let position = Position::default();
         let input = vec![
-            Tkn::Keyword(Kwd::Schema),
-            Tkn::Identifier("my_schema".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
+            Tkn { position, kind: TKnd::Keyword(Kwd::Schema) },
+            Tkn { position, kind: TKnd::Identifier("my_schema".to_owned()) },
+            Tkn { position, kind: TKnd::Symbol(Sym::ParenLeft) },
+            Tkn { position, kind: TKnd::Symbol(Sym::ParenRight) },
         ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Schema(Box::new(Schema {
-                    alias: None,
-                    name: "my_schema".to_owned(),
-                    nodes: Vec::new(),
-                })),
-            ],
-        }));
+         */
+
+        let input = tokens("schema my_schema ()");
+
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Schema(Box::new(Schema {
+                        identity: StructuralIdentity {
+                            alias: None,
+                            name: "my_schema".to_owned(),
+                        },
+                        nodes: Vec::new(),
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_schema_with_alias() {
+        /*
+        let position = Position::default();
         let input = vec![
-            Tkn::Keyword(Kwd::Schema),
-            Tkn::Identifier("my_other_schema".to_owned()),
-            Tkn::Keyword(Kwd::As),
-            Tkn::Identifier("some_alias".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
+            Tkn { position, kind: TKnd::Keyword(Kwd::Schema) },
+            Tkn { position, kind: TKnd::Identifier("my_other_schema".to_owned()) },
+            Tkn { position, kind: TKnd::Keyword(Kwd::As) },
+            Tkn { position, kind: TKnd::Identifier("some_alias".to_owned()) },
+            Tkn { position, kind: TKnd::Symbol(Sym::ParenLeft) },
+            Tkn { position, kind: TKnd::Symbol(Sym::ParenRight) },
         ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Schema(Box::new(Schema {
-                    alias: Some("some_alias".to_owned()),
-                    name: "my_other_schema".to_owned(),
-                    nodes: Vec::new(),
-                })),
-            ],
-        }));
+        */
+
+        let input = tokens("schema my_other_schema as some_alias ()");
+
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Schema(Box::new(Schema {
+                        identity: StructuralIdentity {
+                            alias: Some("some_alias".to_owned()),
+                            name: "my_other_schema".to_owned(),
+                        },
+                        nodes: Vec::new(),
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_top_level_table() {
+        /*
+        let position = Position::default();
         let input = vec![
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("my_table".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
+            Tkn {
+                kind: TKnd::Keyword(Kwd::Table),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Identifier("my_table".to_owned()),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Symbol(Sym::ParenLeft),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Symbol(Sym::ParenRight),
+                position,
+            },
         ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Table(Box::new(Table {
-                    alias: None,
-                    name: "my_table".to_owned(),
-                    nodes: Vec::new(),
-                    schema: None,
-                })),
-            ],
-        }));
+        */
+
+        let input = tokens("table my_table ()");
+
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Table(Box::new(Table {
+                        identity: StructuralIdentity {
+                            alias: None,
+                            name: "my_table".to_owned(),
+                        },
+                        nodes: Vec::new(),
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_top_level_table_with_alias() {
+        /*
+        let position = Position::default();
         let input = vec![
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("my_other_table".to_owned()),
-            Tkn::Keyword(Kwd::As),
-            Tkn::Identifier("some_alias".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
+            Tkn {
+                kind: TKnd::Keyword(Kwd::Table),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Identifier("my_other_table".to_owned()),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Keyword(Kwd::As),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Identifier("some_alias".to_owned()),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Symbol(Sym::ParenLeft),
+                position,
+            },
+            Tkn {
+                kind: TKnd::Symbol(Sym::ParenRight),
+                position,
+            },
         ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Table(Box::new(Table {
-                    alias: Some("some_alias".to_owned()),
-                    name: "my_other_table".to_owned(),
-                    nodes: Vec::new(),
-                    schema: None,
-                })),
-            ],
-        }));
+        */
+
+        let input = tokens("table my_other_table as another_alias ()");
+
+        assert_eq!(
+            parse(input.into_iter()),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Table(Box::new(Table {
+                        identity: StructuralIdentity {
+                            alias: Some("another_alias".to_owned()),
+                            name: "my_other_table".to_owned(),
+                        },
+                        nodes: Vec::new(),
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_qualified_table() {
-        let input = vec![
-            // Declare the schema
-            Tkn::Keyword(Kwd::Schema),
-            Tkn::Identifier("myschema".to_owned()),
+        let input = tokens("
+            schema myschema (
+                table mytable (
+                )
+            )
+        ");
 
-            // Open the schema
-            Tkn::Symbol(Sym::ParenLeft),
-
-            // Declare the table
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("mytable".to_owned()),
-
-            // Open & close the table
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
-
-            // Close the schema
-            Tkn::Symbol(Sym::ParenRight),
-        ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Schema(Box::new(Schema {
-                    alias: None,
-                    name: "myschema".to_owned(),
-                    nodes: vec![
-                        Table {
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Schema(Box::new(Schema {
+                        identity: StructuralIdentity {
                             alias: None,
-                            name: "mytable".to_owned(),
-                            nodes: Vec::new(),
-                            schema: None,
+                            name: "myschema".to_owned(),
                         },
-                    ],
-                })),
-            ],
-        }));
+                        nodes: vec![
+                            Table {
+                                identity: StructuralIdentity {
+                                    alias: None,
+                                    name: "mytable".to_owned(),
+                                },
+                                nodes: Vec::new(),
+                            },
+                        ],
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_qualified_table_with_aliases() {
-        let input = vec![
-            // Declare the schema
-            Tkn::Keyword(Kwd::Schema),
-            Tkn::Identifier("myschema".to_owned()),
-            Tkn::Keyword(Kwd::As),
-            Tkn::Identifier("s".to_owned()),
+        let input = tokens("
+            schema myschema as s1 (
+                table mytable as t1 (
+                )
+            )
+        ");
 
-            // Open the schema
-            Tkn::Symbol(Sym::ParenLeft),
-
-            // Declare the table
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("mytable".to_owned()),
-            Tkn::Keyword(Kwd::As),
-            Tkn::Identifier("t".to_owned()),
-
-            // Open & close the table
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
-
-            // Close the schema
-            Tkn::Symbol(Sym::ParenRight),
-        ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Schema(Box::new(Schema {
-                    alias: Some("s".to_owned()),
-                    name: "myschema".to_owned(),
-                    nodes: vec![
-                        Table {
-                            alias: Some("t".to_owned()),
-                            name: "mytable".to_owned(),
-                            nodes: Vec::new(),
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Schema(Box::new(Schema {
+                        identity: StructuralIdentity {
+                            alias: Some("s1".to_owned()),
+                            name: "myschema".to_owned(),
                         },
-                    ],
-                })),
-            ],
-        }));
+                        nodes: vec![
+                            Table {
+                                identity: StructuralIdentity {
+                                    alias: Some("t1".to_owned()),
+                                    name: "mytable".to_owned(),
+                                },
+                                nodes: Vec::new(),
+                            },
+                        ],
+                    })),
+                ],
+            }),
+        );
     }
 
     #[test]
     fn test_empty_records() {
-        let input = vec![
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("mytable".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
+        let input = tokens("
+            schema s1 (
+                table t1 (
+                    record1 ()
+                    _ ()
+                    ()
+                )
+            )
+            table t2 (
+                ()
+                _ ()
+                record2 ()
+            )
+        ");
 
-            // Declare and close a named record
-            Tkn::Identifier("myrecord".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
-
-            // Declare and close an explicit anonymous record
-            Tkn::Symbol(Sym::Underscore),
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
-
-            // Declare and close an implicit anonymous record
-            Tkn::Symbol(Sym::ParenLeft),
-            Tkn::Symbol(Sym::ParenRight),
-
-            // Close the table
-            Tkn::Symbol(Sym::ParenRight),
-        ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
-            nodes: vec![
-                StructuralNode::Table(Box::new(Table {
-                    alias: None,
-                    name: "mytable".to_owned(),
-                    nodes: vec![
-                        Record {
-                            name: Some("myrecord".to_owned()),
-                            nodes: Vec::new(),
+        assert_eq!(
+            parse(input),
+            Ok(ParseTree {
+                nodes: vec![
+                    StructuralNode::Schema(Box::new(Schema {
+                        identity: StructuralIdentity {
+                            alias: None,
+                            name: "s1".to_owned(),
                         },
-                        Record::default(),
-                        Record::default(),
-                    ],
-                    schema: None,
-                })),
-            ],
-        }));
+                        nodes: vec![
+                            Table {
+                                identity: StructuralIdentity {
+                                    alias: None,
+                                    name: "t1".to_owned(),
+                                },
+                                nodes: vec![
+                                    Record {
+                                        name: Some("record1".to_owned()),
+                                        nodes: Vec::new(),
+                                    },
+                                    Record::default(),
+                                    Record::default(),
+                                ],
+                            },
+                        ],
+                    })),
+                    StructuralNode::Table(Box::new(Table {
+                        identity: StructuralIdentity {
+                            alias: None,
+                            name: "t2".to_owned(),
+                        },
+                        nodes: vec![
+                            Record::default(),
+                            Record::default(),
+                            Record {
+                                name: Some("record2".to_owned()),
+                                nodes: Vec::new(),
+                            },
+                        ],
+                    })),
+                ],
+            })
+        );
     }
 
     #[test]
-    #[rustfmt::skip]
-    fn test_record_with_values() {
-        let input = vec![
-            Tkn::Keyword(Kwd::Table),
-            Tkn::Identifier("mytable".to_owned()),
-            Tkn::Symbol(Sym::ParenLeft),
+    fn test_records_with_values() {
+        let input = tokens(r#"
+            schema s1 (
+                table t1 (
+                    record1 (
+                        -- literal values
+                        col1 123
+                        col2 true
+                        col3 'hello!'
 
-                // Named record
-                Tkn::Identifier("myrecord".to_owned()),
-                Tkn::Symbol(Sym::ParenLeft),
+                        -- column reference
+                        col4 @col3
+                    )
+                    (
+                        -- record-qualified reference
+                        col @record1.col1
+                    )
+                )
+            )
+            table t2 (
+                (
+                    -- schema reference
+                    colx @s1.t1.record1.col2
+                )
+                (
+                    -- with quoted identifiers
+                    coly @"s1"."t1".record1."col2"
+                )
+                record2 (col 1234)
+                _ ()
+            )
+            table t3 (
+                -- top-level table reference
+                (col @t2.record2.col)
+            )
+        "#);
 
-                    Tkn::Identifier("column_one".to_owned()),
-                    Tkn::Number("123".to_owned()),
-                    Tkn::LineSep,
-
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Text("Hello, world!".to_owned()),
-                    Tkn::LineSep,
-
-                Tkn::Symbol(Sym::ParenRight),
-
-                // Open anonymous record
-                Tkn::Symbol(Sym::ParenLeft),
-
-                    Tkn::Identifier("column_one".to_owned()),
-                    Tkn::Bool(true),
-                    Tkn::Symbol(Sym::Comma),
-
-                    // Column reference
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Symbol(Sym::AtSign),
-                    Tkn::Identifier("col1".to_owned()),
-
-                    Tkn::Symbol(Sym::Comma),
-
-                    // Record-qualified reference
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Symbol(Sym::AtSign),
-                    Tkn::Identifier("myrecord".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("col1".to_owned()),
-
-                    Tkn::LineSep,
-
-                    // Table-qualified reference
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Symbol(Sym::AtSign),
-                    Tkn::Identifier("mytable".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("myrecord".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("col2".to_owned()),
-
-                    Tkn::Symbol(Sym::Comma),
-
-                    // Schema-qualified reference
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Symbol(Sym::AtSign),
-                    Tkn::Identifier("myschema".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("mytable".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("myrecord".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("col3".to_owned()),
-
-                    Tkn::LineSep,
-
-                    // Schema-qualified reference with quoted identifiers
-                    Tkn::Identifier("column_two".to_owned()),
-                    Tkn::Symbol(Sym::AtSign),
-                    Tkn::QuotedIdentifier("myschema".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::QuotedIdentifier("mytable".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("myrecord".to_owned()),
-                    Tkn::Symbol(Sym::Period),
-                    Tkn::Identifier("col4".to_owned()),
-
-                    Tkn::Symbol(Sym::Comma),
-
-                Tkn::Symbol(Sym::ParenRight),
-
-            // Close the table
-            Tkn::Symbol(Sym::ParenRight),
-        ];
-        assert_eq!(parse(input.into_iter()), Ok(ParseTree {
+        let t1 = Table {
+            identity: StructuralIdentity {
+                alias: None,
+                name: "t1".to_owned(),
+            },
             nodes: vec![
-                StructuralNode::Table(Box::new(Table {
-                    alias: None,
-                    name: "mytable".to_owned(),
+                Record {
+                    name: Some("record1".to_owned()),
                     nodes: vec![
-                        Record {
-                            name: Some("myrecord".to_owned()),
-                            nodes: vec![
-                                Attribute {
-                                    name: "column_one".to_owned(),
-                                    value: Value::Number(Box::new("123".to_owned())),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Text(Box::new("Hello, world!".to_owned())),
-                                },
-                            ],
+                        Attribute {
+                            name: "col1".to_owned(),
+                            value: Value::Number(Box::new("123".to_owned())),
                         },
-                        Record {
-                            name: None,
-                            nodes: vec![
-                                Attribute {
-                                    name: "column_one".to_owned(),
-                                    value: Value::Bool(true),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Reference(
-                                        Box::new(
-                                            Reference {
-                                                schema: None,
-                                                table: None,
-                                                record: None,
-                                                column: "col1".to_owned(),
-                                            },
-                                        ),
-                                    ),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Reference(
-                                        Box::new(
-                                            Reference {
-                                                schema: None,
-                                                table: None,
-                                                record: Some("myrecord".to_owned()),
-                                                column: "col1".to_owned(),
-                                            },
-                                        ),
-                                    ),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Reference(
-                                        Box::new(
-                                            Reference {
-                                                schema: None,
-                                                table: Some("mytable".to_owned()),
-                                                record: Some("myrecord".to_owned()),
-                                                column: "col2".to_owned(),
-                                            },
-                                        ),
-                                    ),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Reference(
-                                        Box::new(
-                                            Reference {
-                                                schema: Some("myschema".to_owned()),
-                                                table: Some("mytable".to_owned()),
-                                                record: Some("myrecord".to_owned()),
-                                                column: "col3".to_owned(),
-                                            },
-                                        ),
-                                    ),
-                                },
-                                Attribute {
-                                    name: "column_two".to_owned(),
-                                    value: Value::Reference(
-                                        Box::new(
-                                            Reference {
-                                                schema: Some("myschema".to_owned()),
-                                                table: Some("mytable".to_owned()),
-                                                record: Some("myrecord".to_owned()),
-                                                column: "col4".to_owned(),
-                                            },
-                                        ),
-                                    ),
-                                },
-                            ],
+                        Attribute {
+                            name: "col2".to_owned(),
+                            value: Value::Bool(true),
+                        },
+                        Attribute {
+                            name: "col3".to_owned(),
+                            value: Value::Text(Box::new("'hello!'".to_owned())),
+                        },
+                        Attribute {
+                            name: "col4".to_owned(),
+                            value: Value::Reference(
+                                Box::new(
+                                    Reference {
+                                        schema: None,
+                                        table: None,
+                                        record: None,
+                                        column: "col3".to_owned(),
+                                    },
+                                ),
+                            ),
                         },
                     ],
-                    schema: None,
-                })),
+                },
+                Record {
+                    name: None,
+                    nodes: vec![
+                        Attribute {
+                            name: "col".to_owned(),
+                            value: Value::Reference(
+                                Box::new(
+                                    Reference {
+                                        schema: None,
+                                        table: None,
+                                        record: Some("record1".to_owned()),
+                                        column: "col1".to_owned(),
+                                    },
+                                ),
+                            ),
+                        },
+                    ],
+                },
             ],
-        }));
+        };
+        let t2 = Table {
+            identity: StructuralIdentity {
+                alias: None,
+                name: "t2".to_owned(),
+            },
+            nodes: vec![
+                Record {
+                    name: None,
+                    nodes: vec![
+                        Attribute {
+                            name: "colx".to_owned(),
+                            value: Value::Reference(
+                                Box::new(
+                                    Reference {
+                                        schema: Some("s1".to_owned()),
+                                        table: Some("t1".to_owned()),
+                                        record: Some("record1".to_owned()),
+                                        column: "col2".to_owned(),
+                                    },
+                                ),
+                            ),
+                        },
+                    ],
+                },
+                Record {
+                    name: None,
+                    nodes: vec![
+                        Attribute {
+                            name: "coly".to_owned(),
+                            value: Value::Reference(
+                                Box::new(
+                                    Reference {
+                                        // TODO: Should these actually be explicitly quoted?
+                                        schema: Some("\"s1\"".to_owned()),
+                                        table: Some("\"t1\"".to_owned()),
+                                        record: Some("record1".to_owned()),
+                                        column: "\"col2\"".to_owned(),
+                                    },
+                                ),
+                            ),
+                        },
+                    ],
+                },
+                Record {
+                    name: Some("record2".to_owned()),
+                    nodes: vec![
+                        Attribute {
+                            name: "col".to_owned(),
+                            value: Value::Number(Box::new("1234".to_owned())),
+                        },
+                    ],
+                },
+                Record::default(),
+            ],
+        };
+        let t3 = Table {
+            identity: StructuralIdentity {
+                alias: None,
+                name: "t3".to_owned(),
+            },
+            nodes: vec![
+                Record {
+                    name: None,
+                    nodes: vec![
+                        Attribute {
+                            name: "col".to_owned(),
+                            value: Value::Reference(
+                                Box::new(
+                                    Reference {
+                                        schema: None,
+                                        table: Some("t2".to_owned()),
+                                        record: Some("record2".to_owned()),
+                                        column: "col".to_owned(),
+                                    },
+                                ),
+                            ),
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let expected = Ok(ParseTree {
+            nodes: vec![
+                StructuralNode::Schema(Box::new(Schema {
+                    identity: StructuralIdentity {
+                        alias: None,
+                        name: "s1".to_owned(),
+                    },
+                    nodes: vec![t1],
+                })),
+                StructuralNode::Table(Box::new(t2)),
+                StructuralNode::Table(Box::new(t3)),
+            ],
+        });
+        let result = parse(input);
+
+        assert_eq!(result, expected);
     }
-    */
 }
