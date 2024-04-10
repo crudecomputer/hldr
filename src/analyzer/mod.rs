@@ -23,10 +23,9 @@ TODO
 */
 pub mod error;
 
-use std::collections::HashSet;
 use crate::parser::nodes::*;
 use error::*;
-
+use std::collections::HashSet;
 
 pub type AnalyzeResult = Result<ValidatedParseTree, AnalyzeError>;
 
@@ -47,7 +46,7 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
         match node {
             StructuralNode::Schema(schema) => {
                 for table in &schema.nodes {
-                    analyze_table(Some(&schema), table, &mut refset)?;
+                    analyze_table(Some(schema), table, &mut refset)?;
                 }
             }
             StructuralNode::Table(table) => {
@@ -59,21 +58,33 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
     Ok(ValidatedParseTree(parse_tree))
 }
 
-fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) -> Result<(), AnalyzeError> {
+fn analyze_table(
+    schema: Option<&Schema>,
+    table: &Table,
+    refset: &mut RefSet,
+) -> Result<(), AnalyzeError> {
     // TODO: This is mostly copy-pasta
     let table_scope = {
-        let scope = table.identity.alias.as_ref().unwrap_or(&table.identity.name);
+        let scope = table
+            .identity
+            .alias
+            .as_ref()
+            .unwrap_or(&table.identity.name);
         match schema {
             Some(schema) => format!(
                 "{}.{}",
-                schema.identity.alias.as_ref().unwrap_or(&schema.identity.name),
+                schema
+                    .identity
+                    .alias
+                    .as_ref()
+                    .unwrap_or(&schema.identity.name),
                 scope,
             ),
             None => scope.to_owned(),
         }
     };
     for record in &table.nodes {
-        analyze_record(record, &refset, &table_scope)?;
+        analyze_record(record, refset, &table_scope)?;
 
         if let Some(name) = &record.name {
             let key = format!("{}.{}", table_scope, name);
@@ -92,7 +103,11 @@ fn analyze_table(schema: Option<&Schema>, table: &Table, refset: &mut RefSet) ->
     Ok(())
 }
 
-fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) -> Result<(), AnalyzeError> {
+fn analyze_record(
+    record: &Record,
+    refset: &RefSet,
+    parent_scope: &str,
+) -> Result<(), AnalyzeError> {
     let mut attrnames = HashSet::new();
 
     for attr in &record.nodes {
@@ -120,8 +135,11 @@ fn analyze_record(record: &Record, refset: &RefSet, parent_scope: &str) -> Resul
                 continue;
             }
 
-            let expected_key = match (val.schema.as_ref(), val.table.as_ref(), val.record.as_ref()) {
-                (Some(schema), Some(table), Some(record)) => format!("{}.{}.{}", schema, table, record),
+            let expected_key = match (val.schema.as_ref(), val.table.as_ref(), val.record.as_ref())
+            {
+                (Some(schema), Some(table), Some(record)) => {
+                    format!("{}.{}.{}", schema, table, record)
+                }
                 (None, Some(table), Some(record)) => format!("{}.{}", table, record),
                 // Unqualified references to other records are only permitted within the same parent table scope.
                 (None, None, Some(record)) => format!("{}.{}", parent_scope, record),

@@ -1,5 +1,5 @@
-use std::fmt;
 use crate::Position;
+use std::fmt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Keyword {
@@ -65,7 +65,6 @@ impl fmt::Display for TokenKind {
             TokenKind::Symbol(s) => write!(f, "symbol `{}`", s),
             TokenKind::Text(s) => write!(f, "string '{}'", s),
         }
-
     }
 }
 

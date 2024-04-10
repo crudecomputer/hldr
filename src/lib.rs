@@ -5,13 +5,12 @@ pub mod loader;
 pub mod parser;
 mod position;
 
+use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
-use serde::Deserialize;
 
 use error::HldrError;
 pub use position::Position;
-
 
 #[derive(Clone, Default, Debug, Deserialize)]
 pub struct Options {
@@ -35,11 +34,9 @@ impl Options {
             return Err(format!("{} is not a file", filepath.display()));
         }
 
-        let contents = fs::read_to_string(&filepath)
-            .map_err(|e| e.to_string())?;
+        let contents = fs::read_to_string(filepath).map_err(|e| e.to_string())?;
 
-        Ok(Some(toml::from_str(&contents)
-            .map_err(|e| e.to_string())?))
+        Ok(Some(toml::from_str(&contents).map_err(|e| e.to_string())?))
     }
 }
 
@@ -69,19 +66,19 @@ pub fn place(options: &Options) -> Result<(), HldrError> {
 
 #[cfg(test)]
 mod root_tests {
-/*
-    use std::env;
+    /*
+        use std::env;
 
-    use super::{place, Options, PathBuf};
+        use super::{place, Options, PathBuf};
 
-    #[test]
-    fn it_works() {
-        let options = Options {
-            data_file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
-            database_conn: env::var("HLDR_TEST_DATABASE_URL").unwrap().clone(),
-        };
+        #[test]
+        fn it_works() {
+            let options = Options {
+                data_file: PathBuf::from("test/fixtures/place.hldr".to_owned()),
+                database_conn: env::var("HLDR_TEST_DATABASE_URL").unwrap().clone(),
+            };
 
-        place(&options, false).unwrap();
-    }
-*/
+            place(&options, false).unwrap();
+        }
+    */
 }

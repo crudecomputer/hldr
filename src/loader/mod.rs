@@ -1,18 +1,12 @@
 pub mod error;
 
-use std::{collections::HashMap, str::FromStr, time::Duration};
-use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
 use crate::analyzer::ValidatedParseTree;
 use crate::parser::nodes::{
-    StructuralNode,
-    StructuralIdentity,
-    Table,
-    Reference,
-    Attribute,
-    Value,
+    Attribute, Reference, StructuralIdentity, StructuralNode, Table, Value,
 };
 use error::{ClientError, LoadError};
-
+use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
+use std::{collections::HashMap, str::FromStr, time::Duration};
 
 // TODO: move this
 pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
@@ -27,20 +21,23 @@ pub fn new_client(connstr: &str) -> Result<Client, ClientError> {
     config.connect(NoTls).map_err(ClientError::connection_error)
 }
 
-
 type LoadResult<T> = Result<T, LoadError>;
 type RefMap = HashMap<String, SimpleQueryRow>;
 
-
 struct Loader<'a, 'b>
-where 'b: 'a {
+where
+    'b: 'a,
+{
     refmap: RefMap,
     transaction: &'a mut Transaction<'b>,
 }
 
 impl<'a, 'b> Loader<'a, 'b> {
     fn new(transaction: &'a mut Transaction<'b>) -> Self {
-        Self { refmap: HashMap::new(), transaction }
+        Self {
+            refmap: HashMap::new(),
+            transaction,
+        }
     }
 
     fn load_table(&mut self, schema: Option<&StructuralIdentity>, table: &Table) -> LoadResult<()> {
@@ -52,7 +49,11 @@ impl<'a, 'b> Loader<'a, 'b> {
             None => format!(r#""{}""#, table.identity.name),
         };
         let table_scope = {
-            let scope = table.identity.alias.as_ref().unwrap_or(&table.identity.name);
+            let scope = table
+                .identity
+                .alias
+                .as_ref()
+                .unwrap_or(&table.identity.name);
             match schema {
                 Some(schema) => format!(
                     "{}.{}",
@@ -91,7 +92,8 @@ impl<'a, 'b> Loader<'a, 'b> {
             .refmap(&self.refmap)
             .finish()?;
 
-        let resp = self.transaction
+        let resp = self
+            .transaction
             .simple_query(statement.as_ref())
             .map_err(LoadError::new)?
             .remove(0);
@@ -169,11 +171,12 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
     fn write_value(&self, attribute: &Attribute, out: &mut String) -> Result<(), LoadError> {
         match &attribute.value {
             Value::Bool(b) => out.push_str(&b.to_string()),
-            Value::Number(n) => out.push_str(&n),
+            Value::Number(n) => out.push_str(n),
             Value::Reference(r) if r.record.is_none() => {
                 // Column-reference could refer to a literal value, another
                 // column reference, or a reference to a different record
-                let index = self.attribute_indexes
+                let index = self
+                    .attribute_indexes
                     .get(&r.column.as_ref())
                     .expect("missing column");
 
@@ -186,14 +189,18 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
                 let val = self.follow_ref(r)?;
                 out.push_str(&val);
             }
-            Value::Text(t) => out.push_str(&t),
+            Value::Text(t) => out.push_str(t),
         }
 
         Ok(())
     }
 
     fn follow_ref(&self, refval: &Reference) -> Result<String, LoadError> {
-        let key = match (refval.schema.as_ref(), refval.table.as_ref(), refval.record.as_ref()) {
+        let key = match (
+            refval.schema.as_ref(),
+            refval.table.as_ref(),
+            refval.record.as_ref(),
+        ) {
             (Some(schema), Some(table), Some(record)) => {
                 format!("{}.{}.{}", schema, table, record)
             }
@@ -213,7 +220,7 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
         let val = row.try_get(col);
 
         Ok(val
-            .expect(&format!("no column '{}' in record {}", col, key))
+            .unwrap_or_else(|_| panic!("no column '{}' in record {}", col, key))
             .map_or_else(|| "null".to_owned(), |v| format!("'{}'", v)))
     }
 }

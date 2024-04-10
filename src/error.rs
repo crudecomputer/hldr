@@ -1,7 +1,7 @@
+use postgres;
 use std::error::Error;
 use std::fmt;
 use std::io;
-use postgres;
 
 use crate::{analyzer, lexer, loader, parser};
 

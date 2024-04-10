@@ -1,6 +1,6 @@
+use crate::Position;
 use std::error::Error;
 use std::fmt;
-use crate::Position;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LexErrorKind {
@@ -43,23 +43,38 @@ pub struct LexError {
 
 impl LexError {
     pub(crate) fn bad_char(c: char, position: Position) -> Self {
-        Self { kind: LexErrorKind::UnexpectedCharacter(c), position }
+        Self {
+            kind: LexErrorKind::UnexpectedCharacter(c),
+            position,
+        }
     }
 
     pub(crate) fn bad_number(n: String, position: Position) -> Self {
-        Self { kind: LexErrorKind::InvalidNumericLiteral(n), position }
+        Self {
+            kind: LexErrorKind::InvalidNumericLiteral(n),
+            position,
+        }
     }
 
     pub(crate) fn eof(position: Position) -> Self {
-        Self { kind: LexErrorKind::UnexpectedEOF, position  }
+        Self {
+            kind: LexErrorKind::UnexpectedEOF,
+            position,
+        }
     }
 
     pub(crate) fn eof_unquoted(position: Position) -> Self {
-        Self { kind: LexErrorKind::UnclosedQuotedIdentifier, position  }
+        Self {
+            kind: LexErrorKind::UnclosedQuotedIdentifier,
+            position,
+        }
     }
 
     pub(crate) fn eof_string(position: Position) -> Self {
-        Self { kind: LexErrorKind::UnclosedString, position  }
+        Self {
+            kind: LexErrorKind::UnclosedString,
+            position,
+        }
     }
 }
 

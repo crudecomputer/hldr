@@ -1,6 +1,6 @@
-use crate::Position;
 use super::error::LexError;
 use super::tokens::{Keyword, Symbol, Token, TokenKind};
+use crate::Position;
 
 type ReceiveResult = Result<Box<dyn State>, LexError>;
 
@@ -47,7 +47,10 @@ impl Context {
     }
 
     fn add_token(&mut self, kind: TokenKind) {
-        self.tokens.push(Token { kind, position: self.token_start_position });
+        self.tokens.push(Token {
+            kind,
+            position: self.token_start_position,
+        });
     }
 
     pub fn increment_position(&mut self, c: char) {
@@ -94,7 +97,7 @@ impl State for Start {
             '\r' | '\n' => {
                 ctx.add_token(TokenKind::LineSep);
                 to(Start)
-            },
+            }
             '(' => {
                 ctx.add_token(TokenKind::Symbol(Symbol::ParenLeft));
                 to(Start)
@@ -127,15 +130,9 @@ impl State for Start {
                 ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
-            '0'..='9' => {
-                defer_to(InInteger, ctx, Some(c))
-            }
-            _ if is_identifier_char(c) => {
-                defer_to(InIdentifier, ctx, Some(c))
-            }
-            _ if is_whitespace(c) => {
-                to(Start)
-            }
+            '0'..='9' => defer_to(InInteger, ctx, Some(c)),
+            _ if is_identifier_char(c) => defer_to(InIdentifier, ctx, Some(c)),
+            _ if is_whitespace(c) => to(Start),
             _ => Err(LexError::bad_char(c, ctx.current_position)),
         }
     }
@@ -147,9 +144,7 @@ struct AfterPeriod;
 impl State for AfterPeriod {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            Some('0'..='9') => {
-                defer_to(InFloat, ctx, c)
-            }
+            Some('0'..='9') => defer_to(InFloat, ctx, c),
             None | Some(_) if self.can_terminate(c) => {
                 ctx.add_token(TokenKind::Symbol(Symbol::Period));
                 ctx.clear_stack();
@@ -186,9 +181,7 @@ impl State for AfterSingleDash {
                 ctx.clear_stack();
                 to(InComment)
             }
-            Some('0'..='9' | '.') => {
-                defer_to(InInteger, ctx, c)
-            }
+            Some('0'..='9' | '.') => defer_to(InInteger, ctx, c),
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             None => Err(LexError::eof(ctx.current_position)),
         }
@@ -204,9 +197,7 @@ impl State for AfterQuotedIdentifier {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         ctx.stack.push('"');
         match c {
-            Some('"') => {
-                to(InQuotedIdentifier)
-            }
+            Some('"') => to(InQuotedIdentifier),
             _ => {
                 let stack = ctx.drain_stack();
                 ctx.add_token(TokenKind::QuotedIdentifier(stack));
@@ -264,9 +255,7 @@ impl State for InFloat {
                 to(InFloat)
             }
             // Entering into InFloat means there is already a decimal point in the stack
-            Some('.') => {
-                Err(LexError::bad_char('.', ctx.current_position))
-            }
+            Some('.') => Err(LexError::bad_char('.', ctx.current_position)),
             // Underscores can neither be consecutive nor follow a decimal point
             Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
                 ctx.clear_stack();
@@ -276,19 +265,17 @@ impl State for InFloat {
                 ctx.stack.push(c);
                 to(InFloat)
             }
-            None | Some(_) if self.can_terminate(c) => {
-                match ctx.stack.last() {
-                    Some(&'_') => {
-                        let stack = ctx.drain_stack();
-                        Err(LexError::bad_number(stack, ctx.token_start_position))
-                    }
-                    _ => {
-                        let stack = ctx.drain_stack();
-                        ctx.add_token(TokenKind::Number(stack));
-                        defer_to(Start, ctx, c)
-                    }
+            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
+                Some(&'_') => {
+                    let stack = ctx.drain_stack();
+                    Err(LexError::bad_number(stack, ctx.token_start_position))
                 }
-            }
+                _ => {
+                    let stack = ctx.drain_stack();
+                    ctx.add_token(TokenKind::Number(stack));
+                    defer_to(Start, ctx, c)
+                }
+            },
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!(),
         }
@@ -296,7 +283,9 @@ impl State for InFloat {
 
     fn can_terminate(&self, c: Option<char>) -> bool {
         // TODO: This is another indication that the `can_terminate` logic needs overhauling
-        c.is_none() || matches!(c, Some(')')) || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
+        c.is_none()
+            || matches!(c, Some(')'))
+            || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 
@@ -345,27 +334,27 @@ impl State for InInteger {
                 ctx.stack.push(c);
                 to(InFloat)
             }
-            None | Some(_) if self.can_terminate(c) => {
-                match ctx.stack.last() {
-                    Some(&'_') => {
-                        let stack = ctx.drain_stack();
-                        Err(LexError::bad_number(stack, ctx.token_start_position))
-                    }
-                    _ => {
-                        let stack = ctx.drain_stack();
-                        ctx.add_token(TokenKind::Number(stack));
-                        defer_to(Start, ctx, c)
-                    }
+            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
+                Some(&'_') => {
+                    let stack = ctx.drain_stack();
+                    Err(LexError::bad_number(stack, ctx.token_start_position))
                 }
-            }
+                _ => {
+                    let stack = ctx.drain_stack();
+                    ctx.add_token(TokenKind::Number(stack));
+                    defer_to(Start, ctx, c)
+                }
+            },
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
     fn can_terminate(&self, c: Option<char>) -> bool {
         // TODO: This is another indication that the `can_terminate` logic needs overhauling
-        c.is_none() || matches!(c, Some(')')) || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
+        c.is_none()
+            || matches!(c, Some(')'))
+            || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 
@@ -414,17 +403,16 @@ fn identifier_to_token(s: String) -> TokenKind {
 }
 
 fn is_identifier_char(c: char) -> bool {
-    (
-        c == '_' || c.is_alphabetic()
-    ) || (
-        // `char.is_alphabetic` isn't enough because that precludes other unicode chars
-        // that are valid in postgres identifiers, eg:
-        //     create table love (💝 text);
-        //     > CREATE TABLE
-        //
-        // There is, however, a very strong chance the below conditions are not fully accurate.
-        !c.is_control() && !c.is_whitespace() && !c.is_ascii_punctuation()
-    )
+    (c == '_' || c.is_alphabetic())
+        || (
+            // `char.is_alphabetic` isn't enough because that precludes other unicode chars
+            // that are valid in postgres identifiers, eg:
+            //     create table love (💝 text);
+            //     > CREATE TABLE
+            //
+            // There is, however, a very strong chance the below conditions are not fully accurate.
+            !c.is_control() && !c.is_whitespace() && !c.is_ascii_punctuation()
+        )
 }
 
 fn is_whitespace(c: char) -> bool {

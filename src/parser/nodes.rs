@@ -30,7 +30,10 @@ pub struct Schema {
 impl Schema {
     pub fn new(name: String, alias: Option<String>) -> Self {
         let identity = StructuralIdentity::new(name, alias);
-        Self { identity, nodes: Vec::new() }
+        Self {
+            identity,
+            nodes: Vec::new(),
+        }
     }
 }
 
@@ -43,7 +46,10 @@ pub struct Table {
 impl Table {
     pub fn new(name: String, alias: Option<String>) -> Self {
         let identity = StructuralIdentity::new(name, alias);
-        Self { identity, nodes: Vec::new() }
+        Self {
+            identity,
+            nodes: Vec::new(),
+        }
     }
 }
 
@@ -55,7 +61,10 @@ pub struct Record {
 
 impl Record {
     pub fn new(name: Option<String>) -> Self {
-        Self { name, nodes: Vec::new() }
+        Self {
+            name,
+            nodes: Vec::new(),
+        }
     }
 }
 

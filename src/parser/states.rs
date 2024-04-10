@@ -1,12 +1,7 @@
-use std::mem;
-use crate::lexer::tokens::{
-    Keyword,
-    Symbol,
-    Token,
-    TokenKind,
-};
 use super::error::ParseError;
 use super::nodes;
+use crate::lexer::tokens::{Keyword, Symbol, Token, TokenKind};
+use std::mem;
 
 type ParseResult = Result<Box<dyn State>, ParseError>;
 
@@ -98,13 +93,14 @@ impl Context {
     fn push_schema_to_root_or_panic(&mut self, schema: nodes::Schema) {
         match self.stack.last_mut() {
             Some(StackItem::TreeRoot(tree)) => {
-                tree.nodes.push(nodes::StructuralNode::Schema(Box::new(schema)));
+                tree.nodes
+                    .push(nodes::StructuralNode::Schema(Box::new(schema)));
             }
             elt => panic!("expected tree root on stack; received {:?}", elt),
         }
     }
 
-    fn push_table_to_parent_or_panic(&mut self, table: nodes::Table) -> PushedTableTo{
+    fn push_table_to_parent_or_panic(&mut self, table: nodes::Table) -> PushedTableTo {
         match self.stack.last_mut() {
             Some(StackItem::TreeRoot(tree)) => {
                 let node = nodes::StructuralNode::Table(Box::new(table));
@@ -154,15 +150,9 @@ impl State for Root {
             None => return to(Root),
         };
         match t.kind {
-            TokenKind::LineSep => {
-                to(Root)
-            }
-            TokenKind::Keyword(Keyword::Schema) => {
-                to(schema_states::DeclaringSchema)
-            }
-            TokenKind::Keyword(Keyword::Table) => {
-                to(table_states::DeclaringTable)
-            }
+            TokenKind::LineSep => to(Root),
+            TokenKind::Keyword(Keyword::Schema) => to(schema_states::DeclaringSchema),
+            TokenKind::Keyword(Keyword::Table) => to(table_states::DeclaringTable),
             _ => Err(ParseError::token(t)),
         }
     }
@@ -202,9 +192,7 @@ mod schema_states {
                 None => return Err(ParseError::eof()),
             };
             match t.kind {
-                TokenKind::Keyword(Keyword::As) => {
-                    to(DeclaringSchemaAlias(schema_name))
-                }
+                TokenKind::Keyword(Keyword::As) => to(DeclaringSchemaAlias(schema_name)),
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     ctx.push_schema(schema_name, None);
                     to(InSchemaScope)
@@ -227,9 +215,7 @@ mod schema_states {
             };
             match t.kind {
                 // Unlike the true database name, aliases do not support quoted identifiers
-                TokenKind::Identifier(ident) => {
-                    to(ReceivedSchemaAlias(schema_name, ident))
-                }
+                TokenKind::Identifier(ident) => to(ReceivedSchemaAlias(schema_name, ident)),
                 _ => Err(ParseError::exp_alias(t)),
             }
         }
@@ -271,12 +257,8 @@ mod schema_states {
                     ctx.push_schema_to_root_or_panic(schema);
                     to(Root)
                 }
-                TokenKind::Keyword(Keyword::Table) => {
-                    to(table_states::DeclaringTable)
-                }
-                TokenKind::LineSep => {
-                    to(InSchemaScope)
-                }
+                TokenKind::Keyword(Keyword::Table) => to(table_states::DeclaringTable),
+                TokenKind::LineSep => to(InSchemaScope),
                 _ => Err(ParseError::in_schema(t)),
             }
         }
@@ -317,9 +299,7 @@ mod table_states {
                 None => return Err(ParseError::eof()),
             };
             match t.kind {
-                TokenKind::Keyword(Keyword::As) => {
-                    to(DeclaringTableAlias(table_name))
-                }
+                TokenKind::Keyword(Keyword::As) => to(DeclaringTableAlias(table_name)),
                 TokenKind::Symbol(Symbol::ParenLeft) => {
                     ctx.push_table(table_name, None);
                     to(InTableScope)
@@ -340,9 +320,7 @@ mod table_states {
                 None => return Err(ParseError::eof()),
             };
             match t.kind {
-                TokenKind::Identifier(ident) => {
-                    to(ReceivedTableAlias(table_name, ident))
-                }
+                TokenKind::Identifier(ident) => to(ReceivedTableAlias(table_name, ident)),
                 _ => Err(ParseError::exp_alias(t)),
             }
         }
@@ -387,9 +365,7 @@ mod table_states {
                         PushedTableTo::Schema => to(schema_states::InSchemaScope),
                     }
                 }
-                TokenKind::Identifier(ident) => {
-                    to(record_states::ReceivedRecordName(ident))
-                }
+                TokenKind::Identifier(ident) => to(record_states::ReceivedRecordName(ident)),
                 TokenKind::Symbol(Symbol::Underscore) => {
                     to(record_states::ReceivedExplicitAnonymousRecord)
                 }
@@ -397,9 +373,7 @@ mod table_states {
                     ctx.push_record(None);
                     to(record_states::InRecordScope)
                 }
-                TokenKind::LineSep => {
-                    to(InTableScope)
-                }
+                TokenKind::LineSep => to(InTableScope),
                 _ => Err(ParseError::in_table(t)),
             }
         }
@@ -468,9 +442,7 @@ mod record_states {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
                     to(attribute_states::ReceivedAttributeName(ident))
                 }
-                TokenKind::LineSep => {
-                    to(InRecordScope)
-                }
+                TokenKind::LineSep => to(InRecordScope),
                 _ => Err(ParseError::in_record(t)),
             }
         }
@@ -509,9 +481,7 @@ mod attribute_states {
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
-                TokenKind::Symbol(Symbol::AtSign) => {
-                    to(ReceivedReferenceStart(attribute_name))
-                }
+                TokenKind::Symbol(Symbol::AtSign) => to(ReceivedReferenceStart(attribute_name)),
                 TokenKind::Text(t) => {
                     let value = nodes::Value::Text(Box::new(t));
                     ctx.push_attribute(attribute_name, value);
@@ -532,10 +502,13 @@ mod attribute_states {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
             };
-            let quoted = if let &TokenKind::QuotedIdentifier(_) = &t.kind { true } else { false };
+            let quoted = matches!(&t.kind, &TokenKind::QuotedIdentifier(_));
             match t.kind {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
-                    let identifiers = vec![Identifier { quoted, value: ident }];
+                    let identifiers = vec![Identifier {
+                        quoted,
+                        value: ident,
+                    }];
                     to(ReceivedReferenceIdentifier(attribute_name, identifiers))
                 }
                 _ => Err(ParseError::exp_ident(t)),
@@ -560,7 +533,9 @@ mod attribute_states {
                 }
                 TokenKind::LineSep
                 | TokenKind::Symbol(Symbol::Comma)
-                | TokenKind::Symbol(Symbol::ParenRight) if identifiers.len() < 5 => {
+                | TokenKind::Symbol(Symbol::ParenRight)
+                    if identifiers.len() < 5 =>
+                {
                     let (column, record, table, schema) = (
                         // In this state there should always be at least one identifier
                         identifiers.pop().expect("expected element"),
@@ -568,7 +543,11 @@ mod attribute_states {
                         identifiers.pop(),
                         identifiers.pop(),
                     );
-                    if let Some(Identifier{ quoted: true, value }) = &record {
+                    if let Some(Identifier {
+                        quoted: true,
+                        value,
+                    }) = &record
+                    {
                         return Err(ParseError::rec_quot(value.to_owned(), t.position));
                     }
                     // The reference value node has no concept of whether or not the original
@@ -588,7 +567,9 @@ mod attribute_states {
                     // TODO: This pattern is getting a bit gross. There needs to be a cleaner way of ending,
                     // since all values need to handle this line sep/comma/paren pattern.
                     match t.kind {
-                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, Some(t)),
+                        TokenKind::Symbol(Symbol::ParenRight) => {
+                            defer_to(&mut InRecordScope, ctx, Some(t))
+                        }
                         _ => to(record_states::InRecordScope),
                     }
                 }
@@ -612,7 +593,7 @@ mod attribute_states {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
             };
-            let quoted = if let TokenKind::QuotedIdentifier(_) = &t.kind { true } else { false };
+            let quoted = matches!(&t.kind, TokenKind::QuotedIdentifier(_));
 
             // Quoted identifiers are allowed in schema, table, and columns
             // names but not record names, eg. the following patterns are valid:
@@ -628,7 +609,10 @@ mod attribute_states {
             // the next state.
             match t.kind {
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
-                    identifiers.push(Identifier { quoted, value: ident });
+                    identifiers.push(Identifier {
+                        quoted,
+                        value: ident,
+                    });
                     to(ReceivedReferenceIdentifier(attribute_name, identifiers))
                 }
                 _ => Err(ParseError::exp_ident(t)),
@@ -653,7 +637,9 @@ mod attribute_states {
                     ctx.push_attribute_to_record_or_panic(attribute);
 
                     match t.kind {
-                        TokenKind::Symbol(Symbol::ParenRight) => defer_to(&mut InRecordScope, ctx, Some(t)),
+                        TokenKind::Symbol(Symbol::ParenRight) => {
+                            defer_to(&mut InRecordScope, ctx, Some(t))
+                        }
                         _ => to(record_states::InRecordScope),
                     }
                 }

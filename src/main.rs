@@ -15,7 +15,12 @@ struct Command {
     file: Option<PathBuf>,
 
     /// Path to the optional .toml options file
-    #[clap(short = 'o', long = "opts-file", name = "OPTS-FILE", default_value = "hldr-opts.toml")]
+    #[clap(
+        short = 'o',
+        long = "opts-file",
+        name = "OPTS-FILE",
+        default_value = "hldr-opts.toml"
+    )]
     opts_file: PathBuf,
 
     /// Database connection string, either key/value pair or URI style
@@ -28,7 +33,7 @@ fn main() {
     let options = {
         let mut options = hldr::Options::new(&cmd.opts_file)
             .unwrap() // consume result
-            .unwrap_or_else(|| hldr::Options::default());
+            .unwrap_or_default();
 
         // The options file can specify the data file and connection string,
         // which should be overridden by command-line options

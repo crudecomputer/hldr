@@ -1,7 +1,7 @@
+use crate::lexer::tokens::Token;
+use crate::Position;
 use std::error::Error;
 use std::fmt;
-use crate::Position;
-use crate::lexer::tokens::Token;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorKind {
@@ -36,7 +36,11 @@ impl fmt::Display for ParseErrorKind {
                 write!(f, "expected alias or opening parenthesis, found {}", t.kind)
             }
             ExpectedCloseAttribute(t) => {
-                write!(f, "expected comma, newline, or closing parenthesis, found {}", t.kind)
+                write!(
+                    f,
+                    "expected comma, newline, or closing parenthesis, found {}",
+                    t.kind
+                )
             }
             ExpectedIdentifier(t) => {
                 write!(f, "expected identifier, found {}", t.kind)
@@ -54,19 +58,35 @@ impl fmt::Display for ParseErrorKind {
                 write!(f, "expected value, found {}", t.kind)
             }
             RecordNameQuoted(s, _) => {
-                write!(f, "expected unquoted record name in reference, found `\"{}\"`", s)
+                write!(
+                    f,
+                    "expected unquoted record name in reference, found `\"{}\"`",
+                    s
+                )
             }
             UnexpectedEOF => {
                 write!(f, "unexpected end of file")
             }
             UnexpectedInSchema(t) => {
-                write!(f, "expected table declaration or closing parenthesis, found {}", t.kind)
+                write!(
+                    f,
+                    "expected table declaration or closing parenthesis, found {}",
+                    t.kind
+                )
             }
             UnexpectedInTable(t) => {
-                write!(f, "expected record declaration or closing parenthesis, found {}", t.kind)
+                write!(
+                    f,
+                    "expected record declaration or closing parenthesis, found {}",
+                    t.kind
+                )
             }
             UnexpectedInRecord(t) => {
-                write!(f, "expected column declaration or closing parenthesis, found {}", t.kind)
+                write!(
+                    f,
+                    "expected column declaration or closing parenthesis, found {}",
+                    t.kind
+                )
             }
             UnexpectedToken(t) => {
                 write!(f, "unexpected {}", t.kind)
@@ -82,59 +102,87 @@ pub struct ParseError {
 
 impl ParseError {
     pub(crate) fn alias_or_scope(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedAliasOrScope(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedAliasOrScope(t),
+        }
     }
 
     pub(crate) fn eof() -> Self {
-        Self { kind: ParseErrorKind::UnexpectedEOF }
+        Self {
+            kind: ParseErrorKind::UnexpectedEOF,
+        }
     }
 
     pub(crate) fn exp_alias(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedAliasName(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedAliasName(t),
+        }
     }
 
     pub(crate) fn exp_close_attr(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedCloseAttribute(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedCloseAttribute(t),
+        }
     }
 
     pub(crate) fn exp_ident(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedIdentifier(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedIdentifier(t),
+        }
     }
 
     pub(crate) fn exp_scope(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedScope(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedScope(t),
+        }
     }
 
     pub(crate) fn exp_schema(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedSchemaName(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedSchemaName(t),
+        }
     }
 
     pub(crate) fn exp_table(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedTableName(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedTableName(t),
+        }
     }
 
     pub(crate) fn exp_value(t: Token) -> Self {
-        Self { kind: ParseErrorKind::ExpectedValue(t) }
+        Self {
+            kind: ParseErrorKind::ExpectedValue(t),
+        }
     }
 
     pub(crate) fn in_record(t: Token) -> Self {
-        Self { kind: ParseErrorKind::UnexpectedInRecord(t) }
+        Self {
+            kind: ParseErrorKind::UnexpectedInRecord(t),
+        }
     }
 
     pub(crate) fn in_schema(t: Token) -> Self {
-        Self { kind: ParseErrorKind::UnexpectedInSchema(t) }
+        Self {
+            kind: ParseErrorKind::UnexpectedInSchema(t),
+        }
     }
 
     pub(crate) fn in_table(t: Token) -> Self {
-        Self { kind: ParseErrorKind::UnexpectedInTable(t) }
+        Self {
+            kind: ParseErrorKind::UnexpectedInTable(t),
+        }
     }
 
     pub(crate) fn rec_quot(s: String, p: Position) -> Self {
-        Self { kind: ParseErrorKind::RecordNameQuoted(s, p) }
+        Self {
+            kind: ParseErrorKind::RecordNameQuoted(s, p),
+        }
     }
 
     pub(crate) fn token(t: Token) -> Self {
-        Self { kind: ParseErrorKind::UnexpectedToken(t) }
+        Self {
+            kind: ParseErrorKind::UnexpectedToken(t),
+        }
     }
 }
 
