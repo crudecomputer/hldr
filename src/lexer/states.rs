@@ -41,6 +41,11 @@ impl Context {
         self.stack.drain(..).collect()
     }
 
+    /// Clears the stack.
+    fn clear_stack(&mut self) {
+        self.stack.clear();
+    }
+
     fn add_token(&mut self, kind: TokenKind) {
         self.tokens.push(Token { kind, position: self.token_start_position });
     }
@@ -107,15 +112,19 @@ impl State for Start {
                 to(Start)
             }
             '.' => {
+                ctx.stack.push(c);
                 to(AfterPeriod)
             }
             '-' => {
+                ctx.stack.push(c);
                 to(AfterSingleDash)
             }
             '\'' => {
+                ctx.stack.push(c);
                 to(InText)
             }
             '"' => {
+                ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
             '0'..='9' => {
@@ -139,11 +148,12 @@ impl State for AfterPeriod {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
             Some('0'..='9') => {
-                ctx.stack.push('.');
                 defer_to(InFloat, ctx, c)
             }
             None | Some(_) if self.can_terminate(c) => {
                 ctx.add_token(TokenKind::Symbol(Symbol::Period));
+                ctx.clear_stack();
+                ctx.reset_start();
                 defer_to(Start, ctx, c)
             }
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
@@ -170,9 +180,13 @@ struct AfterSingleDash;
 impl State for AfterSingleDash {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
-            Some('-') => to(InComment),
+            Some('-') => {
+                // Clears the existing single dash from the stack so that the context
+                // will be able to reset its start positioning logic for subsequent tokens
+                ctx.clear_stack();
+                to(InComment)
+            }
             Some('0'..='9' | '.') => {
-                ctx.stack.push('-');
                 defer_to(InInteger, ctx, c)
             }
             Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
@@ -188,9 +202,9 @@ struct AfterQuotedIdentifier;
 
 impl State for AfterQuotedIdentifier {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+        ctx.stack.push('"');
         match c {
-            Some(c @ '"') => {
-                ctx.stack.push(c);
+            Some('"') => {
                 to(InQuotedIdentifier)
             }
             _ => {
@@ -209,9 +223,9 @@ struct AfterText;
 
 impl State for AfterText {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+        ctx.stack.push('\'');
         match c {
             Some(c @ '\'') => {
-                ctx.stack.push(c);
                 ctx.stack.push(c);
                 to(InText)
             }
@@ -251,25 +265,25 @@ impl State for InFloat {
             }
             // Entering into InFloat means there is already a decimal point in the stack
             Some('.') => {
-                let stack = ctx.drain_stack();
-                Err(LexError::bad_number(stack, ctx.token_start_position))
+                Err(LexError::bad_char('.', ctx.current_position))
             }
             // Underscores can neither be consecutive nor follow a decimal point
             Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
                 let stack = ctx.drain_stack();
-                Err(LexError::bad_number(stack, ctx.current_position))
+                Err(LexError::bad_char('_', ctx.current_position))
             }
             Some(c @ '_') => {
                 ctx.stack.push(c);
                 to(InFloat)
             }
             None | Some(_) if self.can_terminate(c) => {
-                let stack = ctx.drain_stack();
                 match ctx.stack.last() {
                     Some(&'_') => {
+                        let stack = ctx.drain_stack();
                         Err(LexError::bad_number(stack, ctx.token_start_position))
                     }
                     _ => {
+                        let stack = ctx.drain_stack();
                         ctx.add_token(TokenKind::Number(stack));
                         defer_to(Start, ctx, c)
                     }
@@ -315,9 +329,8 @@ impl State for InInteger {
                 to(InInteger)
             }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
-            Some('_' | '.') if ctx.stack.last() == Some(&'_') => {
-                let stack = ctx.drain_stack();
-                Err(LexError::bad_number(stack, ctx.token_start_position))
+            Some(c @ '_' | c @ '.') if ctx.stack.last() == Some(&'_') => {
+                Err(LexError::bad_char(c, ctx.current_position))
             }
             Some(c @ '_') => {
                 ctx.stack.push(c);
@@ -328,12 +341,13 @@ impl State for InInteger {
                 to(InFloat)
             }
             None | Some(_) if self.can_terminate(c) => {
-                let stack = ctx.drain_stack();
                 match ctx.stack.last() {
                     Some(&'_') => {
+                        let stack = ctx.drain_stack();
                         Err(LexError::bad_number(stack, ctx.token_start_position))
                     }
                     _ => {
+                        let stack = ctx.drain_stack();
                         ctx.add_token(TokenKind::Number(stack));
                         defer_to(Start, ctx, c)
                     }

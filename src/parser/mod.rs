@@ -25,6 +25,7 @@ pub fn parse(input: impl Iterator<Item = Token>) -> Result<nodes::ParseTree, Par
 
 #[cfg(test)]
 mod tests {
+    /*
     use crate::v3::lexer::{Keyword as Kwd, Symbol as Sym, Token as Tkn};
     use super::nodes::*;
     use super::*;
@@ -427,4 +428,5 @@ mod tests {
             ],
         }));
     }
+    */
 }

@@ -186,11 +186,7 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
                 let val = self.follow_ref(r)?;
                 out.push_str(&val);
             }
-            Value::Text(t) => {
-                out.push('\'');
-                out.push_str(&t);
-                out.push('\'');
-            }
+            Value::Text(t) => out.push_str(&t),
         }
 
         Ok(())
