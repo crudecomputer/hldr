@@ -73,3 +73,45 @@ pub struct Token {
     pub kind: TokenKind,
     pub position: Position,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_keyword() {
+        use Keyword::*;
+
+        assert_eq!(format!("{}", As), "as");
+        assert_eq!(format!("{}", Schema), "schema");
+        assert_eq!(format!("{}", Table), "table");
+    }
+
+    #[test]
+    fn test_display_symbol() {
+        use Symbol::*;
+
+        assert_eq!(format!("{}", AtSign), "@");
+        assert_eq!(format!("{}", Comma), ",");
+        assert_eq!(format!("{}", ParenLeft), "(");
+        assert_eq!(format!("{}", ParenRight), ")");
+        assert_eq!(format!("{}", Period), ".");
+        assert_eq!(format!("{}", Underscore), "_");
+    }
+
+    #[test]
+    fn test_display_token_kind() {
+        use super::Keyword::As;
+        use super::Symbol::Comma;
+        use TokenKind::*;
+
+        assert_eq!(format!("{}", Bool(true)), "boolean `true`");
+        assert_eq!(format!("{}", Identifier("foo".to_string())), "identifier `foo`");
+        assert_eq!(format!("{}", Keyword(As)), "keyword `as`");
+        assert_eq!(format!("{}", LineSep), "newline");
+        assert_eq!(format!("{}", Number("42".to_string())), "number `42`");
+        assert_eq!(format!("{}", QuotedIdentifier("foo".to_string())), "quoted identifier `\"foo\"`");
+        assert_eq!(format!("{}", Symbol(Comma)), "symbol `,`");
+        assert_eq!(format!("{}", Text("foo".to_string())), "string 'foo'");
+    }
+}
