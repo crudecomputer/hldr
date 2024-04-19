@@ -7,6 +7,7 @@ use super::numbers::{InFloat, InInteger};
 use super::start::Start;
 
 /// State after receiving a period without preceding digits.
+#[derive(Debug)]
 pub struct AfterPeriod;
 
 impl State for AfterPeriod {
@@ -19,7 +20,7 @@ impl State for AfterPeriod {
                 ctx.reset_start();
                 defer_to(Start, ctx, c)
             }
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position())),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!(),
         }
     }
@@ -38,6 +39,7 @@ impl State for AfterPeriod {
 }
 
 /// State after receiving a single dash
+#[derive(Debug)]
 pub struct AfterSingleDash;
 
 impl State for AfterSingleDash {
@@ -50,8 +52,8 @@ impl State for AfterSingleDash {
                 to(InComment)
             }
             Some('0'..='9' | '.') => defer_to(InInteger, ctx, c),
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position())),
-            None => Err(LexError::eof(ctx.current_position())),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            None => Err(LexError::eof(ctx.current_position)),
         }
     }
 }

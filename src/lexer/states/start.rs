@@ -9,6 +9,7 @@ use super::symbols::{AfterPeriod, AfterSingleDash};
 
 
 /// State corresponding to the start of input or after successfully extracting a token.
+#[derive(Debug)]
 pub struct Start;
 
 impl State for Start {
@@ -40,25 +41,25 @@ impl State for Start {
                 to(Start)
             }
             '.' => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(AfterPeriod)
             }
             '-' => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(AfterSingleDash)
             }
             '\'' => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InText)
             }
             '"' => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
             '0'..='9' => defer_to(InInteger, ctx, Some(c)),
             _ if is_identifier_char(c) => defer_to(InIdentifier, ctx, Some(c)),
             _ if is_whitespace(c) => to(Start),
-            _ => Err(LexError::bad_char(c, ctx.current_position())),
+            _ => Err(LexError::bad_char(c, ctx.current_position)),
         }
     }
 }

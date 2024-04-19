@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::lexer::error::LexError;
 use crate::lexer::tokens::{Token, TokenKind};
 use crate::Position;
@@ -7,10 +8,10 @@ pub type ReceiveResult = Result<Box<dyn State>, LexError>;
 /// The context accessible for any given state
 #[derive(Debug)]
 pub struct Context {
-    current_position: Position,
-    token_start_position: Position,
-    stack: Vec<char>,
-    tokens: Vec<Token>,
+    pub(super) current_position: Position,
+    pub(super) token_start_position: Position,
+    pub(super) stack: Vec<char>,
+    pub(super) tokens: Vec<Token>,
 }
 
 impl Context {
@@ -41,22 +42,6 @@ impl Context {
         self.tokens
     }
 
-    pub(super) fn current_position(&self) -> Position {
-        self.current_position
-    }
-
-    pub(super) fn token_start_position(&self) -> Position {
-        self.token_start_position
-    }
-
-    pub(super) fn top_stack(&self) -> Option<&char> {
-        self.stack.last()
-    }
-
-    pub(super) fn push_stack(&mut self, c: char) {
-        self.stack.push(c);
-    }
-
     /// Drains the stack and returns the contents as a String.
     pub(super) fn drain_stack(&mut self) -> String {
         self.stack.drain(..).collect()
@@ -80,7 +65,7 @@ impl Context {
 }
 
 /// A state in the lexer's state machine.
-pub trait State {
+pub trait State : fmt::Debug {
     /// Receives a character (or `None` when EOF) and returns the next state.
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult;
 

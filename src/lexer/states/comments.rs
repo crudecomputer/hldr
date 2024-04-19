@@ -3,6 +3,7 @@ use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving double-dashes.
+#[derive(Debug, PartialEq)]
 pub struct InComment;
 
 impl State for InComment {

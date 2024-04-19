@@ -4,6 +4,7 @@ use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a single quote and inside a string literal.
+#[derive(Debug)]
 pub struct InText;
 
 impl State for InText {
@@ -11,10 +12,10 @@ impl State for InText {
         match c {
             Some('\'') => to(AfterText),
             Some(c) => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InText)
             }
-            None => Err(LexError::eof_string(ctx.current_position())),
+            None => Err(LexError::eof_string(ctx.current_position)),
         }
     }
 }
@@ -22,14 +23,15 @@ impl State for InText {
 /// State after receiving what might be a closing quote unless the next
 /// character received is another single quote, which indicates the previous
 /// quote was being escaped and is part of the text string.
+#[derive(Debug)]
 pub struct AfterText;
 
 impl State for AfterText {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        ctx.push_stack('\'');
+        ctx.stack.push('\'');
         match c {
             Some(c @ '\'') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InText)
             }
             _ => {

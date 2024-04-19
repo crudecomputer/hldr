@@ -4,30 +4,31 @@ use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a decimal point or a digit after having previously received a decimal point.
+#[derive(Debug)]
 pub struct InFloat;
 
 impl State for InFloat {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
             Some(c @ '0'..='9') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InFloat)
             }
             // Entering into InFloat means there is already a decimal point in the stack
-            Some('.') => Err(LexError::bad_char('.', ctx.current_position())),
+            Some('.') => Err(LexError::bad_char('.', ctx.current_position)),
             // Underscores can neither be consecutive nor follow a decimal point
-            Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.top_stack()) => {
+            Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
                 ctx.clear_stack();
-                Err(LexError::bad_char('_', ctx.current_position()))
+                Err(LexError::bad_char('_', ctx.current_position))
             }
             Some(c @ '_') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InFloat)
             }
-            None | Some(_) if self.can_terminate(c) => match ctx.top_stack() {
+            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
                 Some(&'_') => {
                     let stack = ctx.drain_stack();
-                    Err(LexError::bad_number(stack, ctx.token_start_position()))
+                    Err(LexError::bad_number(stack, ctx.token_start_position))
                 }
                 _ => {
                     let stack = ctx.drain_stack();
@@ -35,7 +36,7 @@ impl State for InFloat {
                     defer_to(Start, ctx, c)
                 }
             },
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position())),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!(),
         }
     }
@@ -50,31 +51,32 @@ impl State for InFloat {
 
 
 /// State after receiving a digit without having previously received a decimal point.
+#[derive(Debug)]
 pub struct InInteger;
 
 impl State for InInteger {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         match c {
             Some(c @ '0'..='9') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InInteger)
             }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
-            Some(c @ '_' | c @ '.') if ctx.top_stack() == Some(&'_') => {
-                Err(LexError::bad_char(c, ctx.current_position()))
+            Some(c @ '_' | c @ '.') if ctx.stack.last() == Some(&'_') => {
+                Err(LexError::bad_char(c, ctx.current_position))
             }
             Some(c @ '_') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InInteger)
             }
             Some(c @ '.') => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InFloat)
             }
-            None | Some(_) if self.can_terminate(c) => match ctx.top_stack() {
+            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
                 Some(&'_') => {
                     let stack = ctx.drain_stack();
-                    Err(LexError::bad_number(stack, ctx.token_start_position()))
+                    Err(LexError::bad_number(stack, ctx.token_start_position))
                 }
                 _ => {
                     let stack = ctx.drain_stack();
@@ -82,7 +84,7 @@ impl State for InInteger {
                     defer_to(Start, ctx, c)
                 }
             },
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position())),
+            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
             _ => unreachable!(),
         }
     }

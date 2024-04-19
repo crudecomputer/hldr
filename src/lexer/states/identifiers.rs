@@ -4,6 +4,7 @@ use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a valid identifier character.
+#[derive(Debug)]
 pub(super) struct InIdentifier;
 
 impl State for InIdentifier {
@@ -13,7 +14,7 @@ impl State for InIdentifier {
         // specifically be forbidden? How much should lexer do?
         match c {
             Some(c) if is_identifier_char(c) => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InIdentifier)
             }
             _ => {
@@ -27,6 +28,7 @@ impl State for InIdentifier {
 }
 
 /// State after receiving a valid identifier character.
+#[derive(Debug)]
 pub(super) struct InQuotedIdentifier;
 
 impl State for InQuotedIdentifier {
@@ -34,10 +36,10 @@ impl State for InQuotedIdentifier {
         match c {
             Some('"') => to(AfterQuotedIdentifier),
             Some(c) => {
-                ctx.push_stack(c);
+                ctx.stack.push(c);
                 to(InQuotedIdentifier)
             }
-            None => Err(LexError::eof_unquoted(ctx.current_position())),
+            None => Err(LexError::eof_unquoted(ctx.current_position)),
         }
     }
 }
@@ -45,11 +47,12 @@ impl State for InQuotedIdentifier {
 /// State after receiving what might be a closing double-quote unless the next
 /// character received is another double-quote, which indicates the previous
 /// quote was being escaped and is part of the quoted identifier.
+#[derive(Debug)]
 pub(super) struct AfterQuotedIdentifier;
 
 impl State for AfterQuotedIdentifier {
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        ctx.push_stack('"');
+        ctx.stack.push('"');
         match c {
             Some('"') => to(InQuotedIdentifier),
             _ => {
