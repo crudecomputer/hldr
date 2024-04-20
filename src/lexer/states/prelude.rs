@@ -1,3 +1,4 @@
+use std::any;
 use std::fmt;
 use crate::lexer::error::LexError;
 use crate::lexer::tokens::{Token, TokenKind};
@@ -65,7 +66,7 @@ impl Context {
 }
 
 /// A state in the lexer's state machine.
-pub trait State : fmt::Debug {
+pub trait State : any::Any + fmt::Debug {
     /// Receives a character (or `None` when EOF) and returns the next state.
     fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult;
 
