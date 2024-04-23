@@ -1,6 +1,5 @@
-use crate::lexer::error::LexError;
+use crate::lexer::error::LexErrorKind;
 use crate::lexer::tokens::{Symbol, TokenKind};
-
 use super::prelude::*;
 use super::comments::InComment;
 use super::numbers::{InFloat, InInteger};
@@ -8,52 +7,58 @@ use super::start::Start;
 
 /// State after receiving a period without preceding digits.
 #[derive(Debug)]
-pub struct AfterPeriod;
+pub(super) struct AfterPeriod(pub Stack);
 
 impl State for AfterPeriod {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        match c {
-            Some('0'..='9') => defer_to(InFloat, ctx, c),
-            None | Some(_) if self.can_terminate(c) => {
-                ctx.add_token(TokenKind::Symbol(Symbol::Period));
-                ctx.clear_stack();
-                ctx.reset_start();
-                defer_to(Start, ctx, c)
-            }
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
-            _ => unreachable!(),
-        }
-    }
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+        let mut stack = self.0;
 
-    fn can_terminate(&self, _c: Option<char>) -> bool {
-        // TODO: This was STILL making expectations.
-        // Outside of float tokens (which this state does not generate)
-        // periods are only used in references, meaning they should only
-        // be followed by a plain or quoted identifier, but how much
-        // should be forbidden during tokenization? And should references
-        // be allowed to have whitespace between the period and the identifier?
-        //
-        // is_identifier_char(c) || c == '"'
-        true
+        match c {
+            Some(c @ '0'..='9') => {
+                stack.push(c);
+                to(InFloat(stack), ContinueToken)
+            }
+            _ => {
+                let kind = TokenKind::Symbol(Symbol::Period);
+                defer_to(Start, c, AddToken(kind))
+            }
+        }
     }
 }
 
 /// State after receiving a single dash
 #[derive(Debug)]
-pub struct AfterSingleDash;
+pub(super) struct AfterSingleDash(pub Stack);
 
 impl State for AfterSingleDash {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{ContinueToken, ResetPosition};
+        use LexErrorKind::{UnexpectedCharacter, UnexpectedEOF};
+        use TransitionErrorPosition::CurrentPosition;
+
+        let mut stack = self.0;
+
         match c {
             Some('-') => {
-                // Clears the existing single dash from the stack so that the context
-                // will be able to reset its start positioning logic for subsequent tokens
-                ctx.clear_stack();
-                to(InComment)
+                to(InComment, ResetPosition)
             }
-            Some('0'..='9' | '.') => defer_to(InInteger, ctx, c),
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
-            None => Err(LexError::eof(ctx.current_position)),
+            Some(c @ '0'..='9') => {
+                stack.push(c);
+                to(InInteger(stack), ContinueToken)
+            }
+            Some(c @ '.') => {
+                stack.push(c);
+                to(InFloat(stack), ContinueToken)
+            }
+            Some(c) => Err(TransitionError {
+                kind: UnexpectedCharacter(c),
+                position: CurrentPosition,
+            }),
+            None => Err(TransitionError {
+                kind: UnexpectedEOF,
+                position: CurrentPosition,
+            }),
         }
     }
 }

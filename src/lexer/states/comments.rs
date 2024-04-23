@@ -7,13 +7,15 @@ use super::start::Start;
 pub struct InComment;
 
 impl State for InComment {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ResetPosition};
+
         match c {
             Some(c) if is_newline(c) => {
-                ctx.add_token(TokenKind::LineSep);
-                to(Start)
+                let kind = TokenKind::LineSep;
+                to(Start, AddToken(kind))
             }
-            _ => to(InComment),
+            _ => to(InComment, ResetPosition),
         }
     }
 }

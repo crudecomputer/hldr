@@ -1,21 +1,33 @@
-use crate::lexer::error::LexError;
+use crate::lexer::error::LexErrorKind;
 use crate::lexer::tokens::TokenKind;
 use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a single quote and inside a string literal.
 #[derive(Debug)]
-pub struct InText;
+pub(super) struct InText(pub Stack);
 
 impl State for InText {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(mut self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{ContinueToken, NoAction};
+        use LexErrorKind::UnclosedString;
+        use TransitionErrorPosition::CurrentPosition;
+
+        let mut stack = self.0;
+
         match c {
-            Some('\'') => to(AfterText),
-            Some(c) => {
-                ctx.stack.push(c);
-                to(InText)
+            Some('\'') => {
+                let mut stack = self.0;
+                to(AfterText(stack), NoAction) // TODO: Action
             }
-            None => Err(LexError::eof_string(ctx.current_position)),
+            Some(c) => {
+                self.0.push(c);
+                to(InText(stack), ContinueToken)
+            }
+            None => Err(TransitionError {
+                kind: UnclosedString,
+                position: CurrentPosition,
+            }),
         }
     }
 }
@@ -24,20 +36,23 @@ impl State for InText {
 /// character received is another single quote, which indicates the previous
 /// quote was being escaped and is part of the text string.
 #[derive(Debug)]
-pub struct AfterText;
+pub(super) struct AfterText(pub Stack);
 
 impl State for AfterText {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        ctx.stack.push('\'');
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+
+        let mut stack = self.0;
+        stack.push('\'');
+
         match c {
-            Some(c @ '\'') => {
-                ctx.stack.push(c);
-                to(InText)
+            Some('\'') => {
+                stack.push('\'');
+                to(InText(stack), ContinueToken)
             }
             _ => {
-                let stack = ctx.drain_stack();
-                ctx.add_token(TokenKind::Text(stack));
-                defer_to(Start, ctx, c)
+                let kind = TokenKind::Text(stack.consume());
+                defer_to(Start, c, AddToken(kind))
             }
         }
     }

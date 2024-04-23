@@ -1,27 +1,26 @@
-use crate::lexer::error::LexError;
+use crate::lexer::error::LexErrorKind;
 use crate::lexer::tokens::{Keyword, Symbol, TokenKind};
 use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a valid identifier character.
 #[derive(Debug)]
-pub(super) struct InIdentifier;
+pub(super) struct InIdentifier(pub Stack);
 
 impl State for InIdentifier {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        // TODO: Should this be more restrictive about what can terminate an identifier?
-        // This does not exclude input like `one@two` or `one'two'` but should those
-        // specifically be forbidden? How much should lexer do?
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+
+        let mut stack = self.0;
+
         match c {
             Some(c) if is_identifier_char(c) => {
-                ctx.stack.push(c);
-                to(InIdentifier)
+                stack.push(c);
+                to(InIdentifier(stack), ContinueToken)
             }
             _ => {
-                let stack = ctx.drain_stack();
-                let token = identifier_to_token(stack);
-                ctx.add_token(token);
-                defer_to(Start, ctx, c)
+                let kind = identifier_to_token_kind(stack.consume());
+                defer_to(Start, c, AddToken(kind))
             }
         }
     }
@@ -29,17 +28,26 @@ impl State for InIdentifier {
 
 /// State after receiving a valid identifier character.
 #[derive(Debug)]
-pub(super) struct InQuotedIdentifier;
+pub(super) struct InQuotedIdentifier(pub Stack);
 
 impl State for InQuotedIdentifier {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{ContinueToken, NoAction};
+        use LexErrorKind::UnclosedQuotedIdentifier;
+        use TransitionErrorPosition::CurrentPosition;
+
+        let mut stack = self.0;
+
         match c {
-            Some('"') => to(AfterQuotedIdentifier),
+            Some('"') => to(AfterQuotedIdentifier(stack), NoAction),
             Some(c) => {
-                ctx.stack.push(c);
-                to(InQuotedIdentifier)
+                stack.push(c);
+                to(InQuotedIdentifier(stack), ContinueToken)
             }
-            None => Err(LexError::eof_unquoted(ctx.current_position)),
+            None => Err(TransitionError {
+                kind: UnclosedQuotedIdentifier,
+                position: CurrentPosition,
+            }),
         }
     }
 }
@@ -48,23 +56,31 @@ impl State for InQuotedIdentifier {
 /// character received is another double-quote, which indicates the previous
 /// quote was being escaped and is part of the quoted identifier.
 #[derive(Debug)]
-pub(super) struct AfterQuotedIdentifier;
+pub(super) struct AfterQuotedIdentifier(pub Stack);
 
 impl State for AfterQuotedIdentifier {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
-        ctx.stack.push('"');
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+
+        let mut stack = self.0;
+        stack.push('"');
+
         match c {
-            Some('"') => to(InQuotedIdentifier),
+            Some('"') => {
+                stack.push('"');
+                to(InQuotedIdentifier(stack), ContinueToken)
+            },
+            // FIXME: Disallow char with code zero per:
+            // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
             _ => {
-                let stack = ctx.drain_stack();
-                ctx.add_token(TokenKind::QuotedIdentifier(stack));
-                defer_to(Start, ctx, c)
+                let kind = TokenKind::QuotedIdentifier(stack.consume());
+                defer_to(Start, c, AddToken(kind))
             }
         }
     }
 }
 
-fn identifier_to_token(s: String) -> TokenKind {
+fn identifier_to_token_kind(s: String) -> TokenKind {
     match s.as_ref() {
         "_" => TokenKind::Symbol(Symbol::Underscore),
         "true" | "t" => TokenKind::Bool(true),

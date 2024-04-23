@@ -1,98 +1,107 @@
-use crate::lexer::error::LexError;
+use crate::lexer::error::LexErrorKind;
 use crate::lexer::tokens::TokenKind;
 use super::prelude::*;
 use super::start::Start;
 
 /// State after receiving a decimal point or a digit after having previously received a decimal point.
 #[derive(Debug)]
-pub struct InFloat;
+pub(super) struct InFloat(pub Stack);
 
 impl State for InFloat {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+        use LexErrorKind::{InvalidNumericLiteral, UnexpectedCharacter};
+        use TransitionErrorPosition::{CurrentPosition, TokenStartPosition};
+
+        let mut stack = self.0;
+
         match c {
-            Some(c @ '0'..='9') => {
-                ctx.stack.push(c);
-                to(InFloat)
-            }
             // Entering into InFloat means there is already a decimal point in the stack
-            Some('.') => Err(LexError::bad_char('.', ctx.current_position)),
+            Some('.') => Err(TransitionError {
+                kind: UnexpectedCharacter('.'),
+                position: CurrentPosition,
+            }),
             // Underscores can neither be consecutive nor follow a decimal point
-            Some('_') if [Some(&'.'), Some(&'_')].contains(&ctx.stack.last()) => {
-                ctx.clear_stack();
-                Err(LexError::bad_char('_', ctx.current_position))
+            Some('_') if matches!(stack.top(), Some('.' | '_')) => {
+                Err(TransitionError {
+                    kind: UnexpectedCharacter('_'),
+                    position: CurrentPosition,
+                })
             }
-            Some(c @ '_') => {
-                ctx.stack.push(c);
-                to(InFloat)
+            Some(c @ '0'..='9' | c @ '_') => {
+                stack.push(c);
+                to(InFloat(stack), ContinueToken)
             }
-            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => {
-                    let stack = ctx.drain_stack();
-                    Err(LexError::bad_number(stack, ctx.token_start_position))
-                }
+            None | Some(_) if can_terminate(c) => match stack.top() {
+                Some('_') => Err(TransitionError {
+                    kind: InvalidNumericLiteral(stack.consume()),
+                    position: TokenStartPosition,
+                }),
                 _ => {
-                    let stack = ctx.drain_stack();
-                    ctx.add_token(TokenKind::Number(stack));
-                    defer_to(Start, ctx, c)
+                    let kind = TokenKind::Number(stack.consume());
+                    defer_to(Start, c, AddToken(kind))
                 }
             },
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            Some(c) => Err(TransitionError {
+                kind: UnexpectedCharacter(c),
+                position: CurrentPosition,
+            }),
             _ => unreachable!(),
         }
-    }
-
-    fn can_terminate(&self, c: Option<char>) -> bool {
-        // TODO: This is another indication that the `can_terminate` logic needs overhauling
-        c.is_none()
-            || matches!(c, Some(')'))
-            || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
     }
 }
 
 
 /// State after receiving a digit without having previously received a decimal point.
 #[derive(Debug)]
-pub struct InInteger;
+pub(super) struct InInteger(pub Stack);
 
 impl State for InInteger {
-    fn receive(&self, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
+        use Action::{AddToken, ContinueToken};
+        use LexErrorKind::{InvalidNumericLiteral, UnexpectedCharacter};
+        use TransitionErrorPosition::{CurrentPosition, TokenStartPosition};
+
+        let mut stack = self.0;
+
         match c {
-            Some(c @ '0'..='9') => {
-                ctx.stack.push(c);
-                to(InInteger)
-            }
             // Underscores cannot be consecutive and decimal points cannot follow underscores
-            Some(c @ '_' | c @ '.') if ctx.stack.last() == Some(&'_') => {
-                Err(LexError::bad_char(c, ctx.current_position))
+            Some(c @ '_' | c @ '.') if matches!(stack.top(), Some('_')) => {
+                Err(TransitionError {
+                    kind: UnexpectedCharacter(c),
+                    position: CurrentPosition,
+                })
             }
-            Some(c @ '_') => {
-                ctx.stack.push(c);
-                to(InInteger)
+            Some(c @ '0'..='9' | c @ '_') => {
+                stack.push(c);
+                to(InInteger(stack), ContinueToken)
             }
             Some(c @ '.') => {
-                ctx.stack.push(c);
-                to(InFloat)
+                stack.push(c);
+                to(InFloat(stack), ContinueToken)
             }
-            None | Some(_) if self.can_terminate(c) => match ctx.stack.last() {
-                Some(&'_') => {
-                    let stack = ctx.drain_stack();
-                    Err(LexError::bad_number(stack, ctx.token_start_position))
-                }
+            None | Some(_) if can_terminate(c) => match stack.top() {
+                Some('_') => Err(TransitionError {
+                    kind: InvalidNumericLiteral(stack.consume()),
+                    position: TokenStartPosition,
+                }),
                 _ => {
-                    let stack = ctx.drain_stack();
-                    ctx.add_token(TokenKind::Number(stack));
-                    defer_to(Start, ctx, c)
+                    let kind = TokenKind::Number(stack.consume());
+                    defer_to(Start, c, AddToken(kind))
                 }
             },
-            Some(c) => Err(LexError::bad_char(c, ctx.current_position)),
+            Some(c) => Err(TransitionError {
+                kind: UnexpectedCharacter(c),
+                position: CurrentPosition,
+            }),
             _ => unreachable!(),
         }
     }
+}
 
-    fn can_terminate(&self, c: Option<char>) -> bool {
-        // TODO: This is another indication that the `can_terminate` logic needs overhauling
-        c.is_none()
-            || matches!(c, Some(')'))
-            || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
-    }
+// TODO: This is another indication that the `can_terminate` logic needs overhauling
+fn can_terminate(c: Option<char>) -> bool {
+    c.is_none()
+        || matches!(c, Some(')'))
+        || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
 }
