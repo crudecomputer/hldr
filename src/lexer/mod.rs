@@ -1,23 +1,49 @@
+mod context;
 pub mod error;
 mod states;
 pub mod tokens;
 
+use context::Context;
 use error::LexError;
+use states::*;
 use tokens::Token;
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
-    let mut context = states::Context::new();
-    let mut state: Box<dyn states::State> = Box::new(states::Start);
+
+    let mut context = Context::new();
+    let mut state: Box<dyn states::State> = Box::new(Start);
 
     for c in input {
-        state = state.receive(&mut context, Some(c))?;
-        context.increment_position(c);
+        let transition = state.receive(Some(c))
+            .map_err(|e| lex_error_from_transition(&context, e))?;
+        state = transition.state;
+
+        // States have been refactored in a way that requires them to have no knowledge or
+        // direct manipulation of the context object, which means they now need to communicate
+        // context-related concepts by way of enums like `TransitionErrorPosition` and `Action`.
+        //
+        // I am unsure if this is better than having states coupled to the context as they previously were.
+        context.respond(transition.actions);
     }
 
-    state.receive(&mut context, None)?;
+    let transition = state.receive(None)
+        .map_err(|e| lex_error_from_transition(&context, e))?;
+    context.respond(transition.actions);
 
     let tokens = context.into_tokens();
     Ok(tokens)
+}
+
+fn lex_error_from_transition(context: &Context, e: TransitionError) -> LexError {
+    use TransitionErrorPosition::*;
+
+    LexError {
+        kind: e.kind,
+        position: match e.position {
+            CurrentPosition => context.current_position,
+            TokenStartPosition => context.token_start_position,
+        },
+    }
 }
 
 #[cfg(test)]

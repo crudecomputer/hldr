@@ -8,7 +8,7 @@ use super::start::Start;
 pub(super) struct InText(pub Stack);
 
 impl State for InText {
-    fn receive(mut self: Box<Self>, c: Option<char>) -> ReceiveResult {
+    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
         use Action::{ContinueToken, NoAction};
         use LexErrorKind::UnclosedString;
         use TransitionErrorPosition::CurrentPosition;
@@ -17,11 +17,10 @@ impl State for InText {
 
         match c {
             Some('\'') => {
-                let mut stack = self.0;
                 to(AfterText(stack), NoAction) // TODO: Action
             }
             Some(c) => {
-                self.0.push(c);
+                stack.push(c);
                 to(InText(stack), ContinueToken)
             }
             None => Err(TransitionError {
