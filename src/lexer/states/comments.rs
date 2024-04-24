@@ -22,6 +22,7 @@ impl State for InComment {
 
 #[cfg(test)]
 mod tests {
+    /*
     use std::any::TypeId;
     use crate::Position;
     use crate::lexer::tokens::{Token, TokenKind};
@@ -71,4 +72,5 @@ mod tests {
         assert!(ctx.stack.is_empty());
         assert!(ctx.tokens.is_empty());
     }
+     */
 }

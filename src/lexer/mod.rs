@@ -11,19 +11,24 @@ use tokens::Token;
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
 
     let mut context = Context::new();
+        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
     let mut state: Box<dyn states::State> = Box::new(Start);
 
     for c in input {
+        println!("\n*** RECEIVE {:?}", c);
         let transition = state.receive(Some(c))
             .map_err(|e| lex_error_from_transition(&context, e))?;
         state = transition.state;
 
-        // States have been refactored in a way that requires them to have no knowledge or
-        // direct manipulation of the context object, which means they now need to communicate
-        // context-related concepts by way of enums like `TransitionErrorPosition` and `Action`.
-        //
-        // I am unsure if this is better than having states coupled to the context as they previously were.
+        println!("\nactions: {:?}", transition.actions);
+
+        println!("\nINCREMENT");
+        context.increment_position(c);
+        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
+
+        println!("\nRESPOND");
         context.respond(transition.actions);
+        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
     }
 
     let transition = state.receive(None)
@@ -48,14 +53,51 @@ fn lex_error_from_transition(context: &Context, e: TransitionError) -> LexError 
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use super::tokenize;
-    use crate::lexer::error::LexError;
+    use crate::lexer::error::{LexError, LexErrorKind};
     use crate::lexer::tokens::{Keyword, Symbol, Token, TokenKind};
     use crate::Position;
 
     fn tokens(input: &str) -> Vec<Token> {
         tokenize(input.chars()).unwrap()
     }
+
+    fn bad_char(c: char, position: Position) -> LexError {
+        LexError {
+            kind: LexErrorKind::UnexpectedCharacter(c),
+            position,
+        }
+    }
+
+    fn bad_number(n: String, position: Position) -> LexError {
+        LexError {
+            kind: LexErrorKind::InvalidNumericLiteral(n),
+            position,
+        }
+    }
+
+    // fn eof(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnexpectedEOF,
+    //         position,
+    //     }
+    // }
+
+    // fn eof_unquoted(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnclosedQuotedIdentifier,
+    //         position,
+    //     }
+    // }
+
+    // fn eof_string(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnclosedString,
+    //         position,
+    //     }
+    // }
+
 
     #[test]
     fn test_empty_input() {
@@ -246,7 +288,7 @@ mod tests {
         for (input, column) in [("1.1. ", 4), (".1.1 ", 3), ("12_.34", 4)] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_char('.', Position { line: 1, column })),
+                Err(bad_char('.', Position { line: 1, column })),
                 "{}",
                 input,
             );
@@ -254,7 +296,7 @@ mod tests {
         for (input, column) in [("12__34", 4), ("12._34", 4)] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_char('_', Position { line: 1, column })),
+                Err(bad_char('_', Position { line: 1, column })),
                 "{}",
                 input,
             );
@@ -262,7 +304,7 @@ mod tests {
         for input in ["123_ ", "12.34_ "] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_number(
+                Err(bad_number(
                     input.trim_end().to_string(),
                     Position { line: 1, column: 1 }
                 )),

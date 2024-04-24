@@ -41,6 +41,9 @@ pub struct LexError {
     pub position: Position,
 }
 
+impl LexError {
+}
+
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} at {}", self.kind, self.position)

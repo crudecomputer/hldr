@@ -1,8 +1,8 @@
 use crate::Position;
-use super::states::Action;
+use super::states::{TransitionActions, Action};
 use super::tokens::{Token, TokenKind};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(super) struct Context {
     pub current_position: Position,
     pub token_start_position: Position,
@@ -23,31 +23,49 @@ impl Context {
         self.tokens
     }
 
-    pub fn respond(&mut self, actions: Vec<Action>) {
-        use Action::*;
+    pub fn respond(&mut self, actions: TransitionActions) {
+        use TransitionActions::*;
 
-        for action in actions {
-            match action {
-                AddToken(kind) => {
-                    let wrap_line = matches!(kind, TokenKind::LineSep);
-
-                    self.add_token(kind);
-                    self.increment_position(wrap_line);
-                    self.reset_start();
-                }
-                ContinueToken => {
-                    self.increment_position(false);
-                }
-                ResetPosition => {
-                    self.increment_position(false);
-                    self.reset_start();
-                }
-                NoAction => {},
+        match actions {
+            Single(action) => {
+                self.respond_single(action);
+            }
+            Double(action1, action2) => {
+                self.respond_single(action1);
+                // self.reset_start();
+                self.respond_single(action2);
             }
         }
     }
 
-    fn increment_position(&mut self, next_line: bool) {
+    fn respond_single(&mut self, action: Action) {
+        use Action::*;
+
+        match action {
+            AddToken(kind) => {
+                self.add_token(kind);
+                self.reset_start();
+            }
+            ContinueToken => {
+                // self.increment_position(false);
+            }
+            ResetPosition => {
+                self.reset_start();
+            }
+            NoAction => {},
+        }
+    }
+
+    pub fn increment_position(&mut self, c: char) {
+        if ['\r', '\n'].contains(&c) {
+            self.current_position.line += 1;
+            self.current_position.column = 1;
+        } else {
+            self.current_position.column += 1;
+        }
+    }
+
+    fn xincrement_position(&mut self, next_line: bool) {
         if next_line {
             self.current_position.line += 1;
             self.current_position.column = 1;
@@ -79,4 +97,51 @@ impl Context {
     pub(super) fn reset_start(&mut self) {
         self.token_start_position = self.current_position;
     }
+}
+
+#[cfg(test)]
+mod test_context {
+    /*
+    use pretty_assertions::assert_eq;
+    use crate::Position;
+    use super::{Action::*, Context};
+
+    #[test]
+    fn test_single_action_no_action() {
+        let mut actual = Context {
+            current_position: Position { line: 1, column: 1 },
+            token_start_position: Position { line: 1, column: 1 },
+            tokens: vec![],
+        };
+
+        actual.respond(vec![NoAction]);
+
+        let expected = Context {
+            current_position: Position { line: 1, column: 1 },
+            token_start_position: Position { line: 1, column: 1 },
+            tokens: vec![],
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_single_action_continue_token() {
+        let mut actual = Context {
+            current_position: Position { line: 1, column: 1 },
+            token_start_position: Position { line: 1, column: 1 },
+            tokens: vec![],
+        };
+
+        actual.respond(vec![NoAction]);
+
+        let expected = Context {
+            current_position: Position { line: 1, column: 2 },
+            token_start_position: Position { line: 1, column: 1 },
+            tokens: vec![],
+        };
+
+        assert_eq!(actual, expected);
+    }
+     */
 }
