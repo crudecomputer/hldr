@@ -1,33 +1,57 @@
 use std::any;
 use std::fmt;
-pub use crate::lexer::context::Context;
+use crate::Position;
 use crate::lexer::error::LexError;
+use super::tokens::Token;
 
 pub type ReceiveResult = Result<Box<dyn State>, LexError>;
 
-#[derive(Debug, Default, PartialEq)]
-pub(super) struct Stack(String);
+#[derive(Debug, Default)]
+pub(super) struct Context {
+    pub current_position: Position,
+    tokens: Vec<Token>,
+}
+
+impl Context {
+    pub fn add_token(&mut self, token: Token) {
+        self.tokens.push(token);
+    }
+
+    pub fn increment_position(&mut self, c: char) {
+        self.current_position.increment(matches!(c, '\r' | '\n'));
+    }
+
+    pub fn into_tokens(self) -> Vec<Token> {
+        self.tokens
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(super) struct Stack {
+    content: String,
+    pub start_position: Position,
+}
 
 impl Stack {
+    pub fn new(start_position: Position, c: char) -> Self {
+        Self {
+            content: String::from(c),
+            start_position,
+        }
+    }
+
     pub fn consume(self) -> String {
-        self.0
+        self.content
     }
 
     pub fn push(&mut self, c: char) {
-        self.0.push(c);
+        self.content.push(c);
     }
 
     pub fn top(&self) -> Option<char> {
-        self.0.chars().rev().next()
+        self.content.chars().rev().next()
     }
 }
-
-impl From<char> for Stack {
-    fn from(c: char) -> Self {
-        Self(String::from(c))
-    }
-}
-
 
 /// A state in the lexer's state machine.
 pub trait State : any::Any + fmt::Debug {

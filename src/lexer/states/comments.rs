@@ -1,5 +1,5 @@
-use crate::lexer::tokens::TokenKind;
-use super::prelude::*;
+use crate::lexer::tokens::{Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::start::Start;
 
 /// State after receiving double-dashes.
@@ -11,7 +11,7 @@ impl State for InComment {
         match c {
             Some(c) if is_newline(c) => {
                 let kind = TokenKind::LineSep;
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             _ => to(InComment),

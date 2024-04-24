@@ -1,6 +1,6 @@
 use crate::lexer::error::{LexError, LexErrorKind};
-use crate::lexer::tokens::TokenKind;
-use super::prelude::*;
+use crate::lexer::tokens::{Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::start::Start;
 
 /// State after receiving a decimal point or a digit after having previously received a decimal point.
@@ -17,13 +17,13 @@ impl State for InFloat {
             // Entering into InFloat means there is already a decimal point in the stack
             Some('.') => Err(LexError {
                 kind: UnexpectedCharacter('.'),
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
             // Underscores can neither be consecutive nor follow a decimal point
             Some('_') if matches!(stack.top(), Some('.' | '_')) => {
                 Err(LexError {
                     kind: UnexpectedCharacter('_'),
-                    position: ctx.current_position(),
+                    position: ctx.current_position,
                 })
             }
             Some(c @ '0'..='9' | c @ '_') => {
@@ -32,18 +32,19 @@ impl State for InFloat {
             }
             None | Some(_) if can_terminate(c) => match stack.top() {
                 Some('_') => Err(LexError {
+                    position: stack.start_position,
                     kind: InvalidNumericLiteral(stack.consume()),
-                    position: ctx.token_start_position(),
                 }),
                 _ => {
+                    let position = stack.start_position;
                     let kind = TokenKind::Number(stack.consume());
-                    ctx.add_token(kind);
+                    ctx.add_token(Token { kind, position });
                     defer_to(Start, ctx, c)
                 }
             },
             Some(c) => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
             _ => unreachable!(),
         }
@@ -66,7 +67,7 @@ impl State for InInteger {
             Some(c @ '_' | c @ '.') if matches!(stack.top(), Some('_')) => {
                 Err(LexError {
                     kind: UnexpectedCharacter(c),
-                    position: ctx.current_position(),
+                    position: ctx.current_position,
                 })
             }
             Some(c @ '0'..='9' | c @ '_') => {
@@ -79,18 +80,19 @@ impl State for InInteger {
             }
             None | Some(_) if can_terminate(c) => match stack.top() {
                 Some('_') => Err(LexError {
+                    position: stack.start_position,
                     kind: InvalidNumericLiteral(stack.consume()),
-                    position: ctx.token_start_position(),
                 }),
                 _ => {
+                    let position = stack.start_position;
                     let kind = TokenKind::Number(stack.consume());
-                    ctx.add_token(kind);
+                    ctx.add_token(Token { kind, position });
                     defer_to(Start, ctx, c)
                 }
             },
             Some(c) => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
             _ => unreachable!(),
         }

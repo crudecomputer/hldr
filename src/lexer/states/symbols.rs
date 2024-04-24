@@ -1,6 +1,6 @@
 use crate::lexer::error::{LexError, LexErrorKind};
-use crate::lexer::tokens::{Symbol, TokenKind};
-use super::prelude::*;
+use crate::lexer::tokens::{Symbol, Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::comments::InComment;
 use super::numbers::{InFloat, InInteger};
 use super::start::Start;
@@ -20,8 +20,7 @@ impl State for AfterPeriod {
             }
             _ => {
                 let kind = TokenKind::Symbol(Symbol::Period);
-                ctx.add_token(kind);
-                ctx.reset_start();
+                ctx.add_token(Token { kind, position: stack.start_position });
                 defer_to(Start, ctx, c)
             }
         }
@@ -40,7 +39,6 @@ impl State for AfterSingleDash {
 
         match c {
             Some('-') => {
-                ctx.in_token = false;
                 to(InComment)
             }
             Some(c @ '0'..='9') => {
@@ -53,11 +51,11 @@ impl State for AfterSingleDash {
             }
             Some(c) => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
             None => Err(LexError {
                 kind: UnexpectedEOF,
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
         }
     }

@@ -1,6 +1,6 @@
 use crate::lexer::error::{LexError, LexErrorKind};
-use crate::lexer::tokens::{Keyword, Symbol, TokenKind};
-use super::prelude::*;
+use crate::lexer::tokens::{Keyword, Symbol, Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::start::Start;
 
 /// State after receiving a valid identifier character.
@@ -17,8 +17,9 @@ impl State for InIdentifier {
                 to(InIdentifier(stack))
             }
             _ => {
+                let position = stack.start_position;
                 let kind = identifier_to_token_kind(stack.consume());
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position });
                 defer_to(Start, ctx, c)
             }
         }
@@ -43,7 +44,7 @@ impl State for InQuotedIdentifier {
             }
             None => Err(LexError {
                 kind: UnclosedQuotedIdentifier,
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
         }
     }
@@ -68,8 +69,9 @@ impl State for AfterQuotedIdentifier {
             // FIXME: Disallow char with code zero per:
             // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
             _ => {
+                let position = stack.start_position;
                 let kind = TokenKind::QuotedIdentifier(stack.consume());
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position });
                 defer_to(Start, ctx, c)
             }
         }

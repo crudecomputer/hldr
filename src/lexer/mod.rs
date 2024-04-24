@@ -1,25 +1,25 @@
-mod context;
 pub mod error;
+mod prelude;
 mod states;
 pub mod tokens;
 
-use context::Context;
 use error::LexError;
-use states::*;
+use prelude::{Context, State};
+use states::Start;
 use tokens::Token;
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
-    let mut context = Context::new();
-    let mut state: Box<dyn states::State> = Box::new(Start);
+    let mut ctx = Context::default();
+    let mut state: Box<dyn State> = Box::new(Start);
 
     for c in input {
-        state = state.receive(&mut context, Some(c))?;
-        context.increment_position(c);
+        state = state.receive(&mut ctx, Some(c))?;
+        ctx.increment_position(c);
     }
 
-    state = state.receive(&mut context, None)?;
+    state.receive(&mut ctx, None)?;
 
-    let tokens = context.into_tokens();
+    let tokens = ctx.into_tokens();
     Ok(tokens)
 }
 

@@ -1,6 +1,6 @@
 use crate::lexer::error::{LexError, LexErrorKind};
-use crate::lexer::tokens::TokenKind;
-use super::prelude::*;
+use crate::lexer::tokens::{Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::start::Start;
 
 /// State after receiving a single quote and inside a string literal.
@@ -23,7 +23,7 @@ impl State for InText {
             }
             None => Err(LexError {
                 kind: UnclosedString,
-                position: ctx.current_position(),
+                position: ctx.current_position,
             }),
         }
     }
@@ -46,8 +46,9 @@ impl State for AfterText {
                 to(InText(stack))
             }
             _ => {
+                let position = stack.start_position;
                 let kind = TokenKind::Text(stack.consume());
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position });
                 defer_to(Start, ctx, c)
             }
         }

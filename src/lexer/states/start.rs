@@ -1,7 +1,6 @@
 use crate::lexer::error::{LexError, LexErrorKind};
-use crate::lexer::tokens::{Symbol, TokenKind};
-
-use super::prelude::*;
+use crate::lexer::tokens::{Symbol, Token, TokenKind};
+use crate::lexer::prelude::*;
 use super::identifiers::{InIdentifier, InQuotedIdentifier};
 use super::numbers::InInteger;
 use super::text::InText;
@@ -25,57 +24,51 @@ impl State for Start {
         match c {
             '\r' | '\n' => {
                 let kind = TokenKind::LineSep;
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             '(' => {
                 let kind = TokenKind::Symbol(Symbol::ParenLeft);
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             ')' => {
                 let kind = TokenKind::Symbol(Symbol::ParenRight);
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             '@' => {
                 let kind = TokenKind::Symbol(Symbol::AtSign);
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             ',' => {
                 let kind = TokenKind::Symbol(Symbol::Comma);
-                ctx.add_token(kind);
+                ctx.add_token(Token { kind, position: ctx.current_position });
                 to(Start)
             }
             '.' => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(AfterPeriod(stack))
             }
             '-' => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(AfterSingleDash(stack))
             }
             '\'' => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(InText(stack))
             }
             '"' => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(InQuotedIdentifier(stack))
             }
             '0'..='9' => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(InInteger(stack))
             }
             c if is_identifier_char(c) => {
-                let stack = Stack::from(c);
-                ctx.in_token = true;
+                let stack = Stack::new(ctx.current_position, c);
                 to(InIdentifier(stack))
             }
             _ if is_whitespace(c) => {
@@ -83,7 +76,7 @@ impl State for Start {
             }
             _ => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: ctx.current_position(),
+                position: ctx.current_position,
             })
         }
     }
