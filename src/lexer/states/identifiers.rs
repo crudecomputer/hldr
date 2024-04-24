@@ -1,4 +1,4 @@
-use crate::lexer::error::LexErrorKind;
+use crate::lexer::error::{LexError, LexErrorKind};
 use crate::lexer::tokens::{Keyword, Symbol, TokenKind};
 use super::prelude::*;
 use super::start::Start;
@@ -8,19 +8,18 @@ use super::start::Start;
 pub(super) struct InIdentifier(pub Stack);
 
 impl State for InIdentifier {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{AddToken, ContinueToken};
-
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         let mut stack = self.0;
 
         match c {
             Some(c) if is_identifier_char(c) => {
                 stack.push(c);
-                to(InIdentifier(stack), ContinueToken)
+                to(InIdentifier(stack))
             }
             _ => {
                 let kind = identifier_to_token_kind(stack.consume());
-                defer_to(Start, c, AddToken(kind))
+                ctx.add_token(kind);
+                defer_to(Start, ctx, c)
             }
         }
     }
@@ -31,22 +30,20 @@ impl State for InIdentifier {
 pub(super) struct InQuotedIdentifier(pub Stack);
 
 impl State for InQuotedIdentifier {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{ContinueToken, NoAction};
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         use LexErrorKind::UnclosedQuotedIdentifier;
-        use TransitionErrorPosition::CurrentPosition;
 
         let mut stack = self.0;
 
         match c {
-            Some('"') => to(AfterQuotedIdentifier(stack), NoAction),
+            Some('"') => to(AfterQuotedIdentifier(stack)),
             Some(c) => {
                 stack.push(c);
-                to(InQuotedIdentifier(stack), ContinueToken)
+                to(InQuotedIdentifier(stack))
             }
-            None => Err(TransitionError {
+            None => Err(LexError {
                 kind: UnclosedQuotedIdentifier,
-                position: CurrentPosition,
+                position: ctx.current_position(),
             }),
         }
     }
@@ -59,22 +56,21 @@ impl State for InQuotedIdentifier {
 pub(super) struct AfterQuotedIdentifier(pub Stack);
 
 impl State for AfterQuotedIdentifier {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{AddToken, ContinueToken};
-
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         let mut stack = self.0;
         stack.push('"');
 
         match c {
             Some('"') => {
                 stack.push('"');
-                to(InQuotedIdentifier(stack), ContinueToken)
+                to(InQuotedIdentifier(stack))
             },
             // FIXME: Disallow char with code zero per:
             // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
             _ => {
                 let kind = TokenKind::QuotedIdentifier(stack.consume());
-                defer_to(Start, c, AddToken(kind))
+                ctx.add_token(kind);
+                defer_to(Start, ctx, c)
             }
         }
     }

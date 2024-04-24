@@ -1,4 +1,4 @@
-use crate::lexer::error::LexErrorKind;
+use crate::lexer::error::{LexError, LexErrorKind};
 use crate::lexer::tokens::TokenKind;
 use super::prelude::*;
 use super::start::Start;
@@ -8,24 +8,22 @@ use super::start::Start;
 pub(super) struct InText(pub Stack);
 
 impl State for InText {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{ContinueToken, NoAction};
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         use LexErrorKind::UnclosedString;
-        use TransitionErrorPosition::CurrentPosition;
 
         let mut stack = self.0;
 
         match c {
             Some('\'') => {
-                to(AfterText(stack), NoAction) // TODO: Action
+                to(AfterText(stack))
             }
             Some(c) => {
                 stack.push(c);
-                to(InText(stack), ContinueToken)
+                to(InText(stack))
             }
-            None => Err(TransitionError {
+            None => Err(LexError {
                 kind: UnclosedString,
-                position: CurrentPosition,
+                position: ctx.current_position(),
             }),
         }
     }
@@ -38,20 +36,19 @@ impl State for InText {
 pub(super) struct AfterText(pub Stack);
 
 impl State for AfterText {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{AddToken, ContinueToken};
-
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         let mut stack = self.0;
         stack.push('\'');
 
         match c {
             Some('\'') => {
                 stack.push('\'');
-                to(InText(stack), ContinueToken)
+                to(InText(stack))
             }
             _ => {
                 let kind = TokenKind::Text(stack.consume());
-                defer_to(Start, c, AddToken(kind))
+                ctx.add_token(kind);
+                defer_to(Start, ctx, c)
             }
         }
     }

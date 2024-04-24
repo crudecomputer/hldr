@@ -1,4 +1,4 @@
-use crate::lexer::error::LexErrorKind;
+use crate::lexer::error::{LexError, LexErrorKind};
 use crate::lexer::tokens::TokenKind;
 use super::prelude::*;
 use super::start::Start;
@@ -8,43 +8,42 @@ use super::start::Start;
 pub(super) struct InFloat(pub Stack);
 
 impl State for InFloat {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{AddToken, ContinueToken};
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         use LexErrorKind::{InvalidNumericLiteral, UnexpectedCharacter};
-        use TransitionErrorPosition::{CurrentPosition, TokenStartPosition};
 
         let mut stack = self.0;
 
         match c {
             // Entering into InFloat means there is already a decimal point in the stack
-            Some('.') => Err(TransitionError {
+            Some('.') => Err(LexError {
                 kind: UnexpectedCharacter('.'),
-                position: CurrentPosition,
+                position: ctx.current_position(),
             }),
             // Underscores can neither be consecutive nor follow a decimal point
             Some('_') if matches!(stack.top(), Some('.' | '_')) => {
-                Err(TransitionError {
+                Err(LexError {
                     kind: UnexpectedCharacter('_'),
-                    position: CurrentPosition,
+                    position: ctx.current_position(),
                 })
             }
             Some(c @ '0'..='9' | c @ '_') => {
                 stack.push(c);
-                to(InFloat(stack), ContinueToken)
+                to(InFloat(stack))
             }
             None | Some(_) if can_terminate(c) => match stack.top() {
-                Some('_') => Err(TransitionError {
+                Some('_') => Err(LexError {
                     kind: InvalidNumericLiteral(stack.consume()),
-                    position: TokenStartPosition,
+                    position: ctx.token_start_position(),
                 }),
                 _ => {
                     let kind = TokenKind::Number(stack.consume());
-                    defer_to(Start, c, AddToken(kind))
+                    ctx.add_token(kind);
+                    defer_to(Start, ctx, c)
                 }
             },
-            Some(c) => Err(TransitionError {
+            Some(c) => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: CurrentPosition,
+                position: ctx.current_position(),
             }),
             _ => unreachable!(),
         }
@@ -57,42 +56,41 @@ impl State for InFloat {
 pub(super) struct InInteger(pub Stack);
 
 impl State for InInteger {
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{AddToken, ContinueToken};
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         use LexErrorKind::{InvalidNumericLiteral, UnexpectedCharacter};
-        use TransitionErrorPosition::{CurrentPosition, TokenStartPosition};
 
         let mut stack = self.0;
 
         match c {
             // Underscores cannot be consecutive and decimal points cannot follow underscores
             Some(c @ '_' | c @ '.') if matches!(stack.top(), Some('_')) => {
-                Err(TransitionError {
+                Err(LexError {
                     kind: UnexpectedCharacter(c),
-                    position: CurrentPosition,
+                    position: ctx.current_position(),
                 })
             }
             Some(c @ '0'..='9' | c @ '_') => {
                 stack.push(c);
-                to(InInteger(stack), ContinueToken)
+                to(InInteger(stack))
             }
             Some(c @ '.') => {
                 stack.push(c);
-                to(InFloat(stack), ContinueToken)
+                to(InFloat(stack))
             }
             None | Some(_) if can_terminate(c) => match stack.top() {
-                Some('_') => Err(TransitionError {
+                Some('_') => Err(LexError {
                     kind: InvalidNumericLiteral(stack.consume()),
-                    position: TokenStartPosition,
+                    position: ctx.token_start_position(),
                 }),
                 _ => {
                     let kind = TokenKind::Number(stack.consume());
-                    defer_to(Start, c, AddToken(kind))
+                    ctx.add_token(kind);
+                    defer_to(Start, ctx, c)
                 }
             },
-            Some(c) => Err(TransitionError {
+            Some(c) => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: CurrentPosition,
+                position: ctx.current_position(),
             }),
             _ => unreachable!(),
         }

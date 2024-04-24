@@ -1,4 +1,4 @@
-use crate::lexer::error::LexErrorKind;
+use crate::lexer::error::{LexError, LexErrorKind};
 use crate::lexer::tokens::{Symbol, TokenKind};
 
 use super::prelude::*;
@@ -14,72 +14,76 @@ pub struct Start;
 
 impl State for Start {
     #[rustfmt::skip]
-    fn receive(self: Box<Self>, c: Option<char>) -> ReceiveResult {
-        use Action::{
-            AddToken,
-            ContinueToken,
-            NoAction,
-            ResetPosition,
-        };
+    fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult {
         use LexErrorKind::UnexpectedCharacter;
-        use TransitionErrorPosition::CurrentPosition;
 
         let c = match c {
             Some(c) => c,
-            None => return to(Start, NoAction),
+            None => return to(Start),
         };
 
         match c {
             '\r' | '\n' => {
                 let kind = TokenKind::LineSep;
-                to(Start, AddToken(kind))
+                ctx.add_token(kind);
+                to(Start)
             }
             '(' => {
                 let kind = TokenKind::Symbol(Symbol::ParenLeft);
-                to(Start, AddToken(kind))
+                ctx.add_token(kind);
+                to(Start)
             }
             ')' => {
                 let kind = TokenKind::Symbol(Symbol::ParenRight);
-                to(Start, AddToken(kind))
+                ctx.add_token(kind);
+                to(Start)
             }
             '@' => {
                 let kind = TokenKind::Symbol(Symbol::AtSign);
-                to(Start, AddToken(kind))
+                ctx.add_token(kind);
+                to(Start)
             }
             ',' => {
                 let kind = TokenKind::Symbol(Symbol::Comma);
-                to(Start, AddToken(kind))
+                ctx.add_token(kind);
+                to(Start)
             }
             '.' => {
                 let stack = Stack::from(c);
-                to(AfterPeriod(stack), ContinueToken)
+                ctx.in_token = true;
+                to(AfterPeriod(stack))
             }
             '-' => {
                 let stack = Stack::from(c);
-                to(AfterSingleDash(stack), ContinueToken)
+                ctx.in_token = true;
+                to(AfterSingleDash(stack))
             }
             '\'' => {
                 let stack = Stack::from(c);
-                to(InText(stack), ContinueToken)
+                ctx.in_token = true;
+                to(InText(stack))
             }
             '"' => {
                 let stack = Stack::from(c);
-                to(InQuotedIdentifier(stack), ContinueToken)
+                ctx.in_token = true;
+                to(InQuotedIdentifier(stack))
             }
             '0'..='9' => {
                 let stack = Stack::from(c);
-                to(InInteger(stack), ContinueToken)
+                ctx.in_token = true;
+                to(InInteger(stack))
             }
             c if is_identifier_char(c) => {
                 let stack = Stack::from(c);
-                to(InIdentifier(stack), ContinueToken)
+                ctx.in_token = true;
+                to(InIdentifier(stack))
             }
             _ if is_whitespace(c) => {
-                to(Start, ResetPosition)
+                to(Start)
             }
-            _ => Err(TransitionError {
+            _ => Err(LexError {
                 kind: UnexpectedCharacter(c),
-                position: CurrentPosition,
+                position: ctx.current_position(),
             })
         }
     }

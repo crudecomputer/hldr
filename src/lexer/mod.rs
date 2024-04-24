@@ -9,46 +9,18 @@ use states::*;
 use tokens::Token;
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
-
     let mut context = Context::new();
-        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
     let mut state: Box<dyn states::State> = Box::new(Start);
 
     for c in input {
-        println!("\n*** RECEIVE {:?}", c);
-        let transition = state.receive(Some(c))
-            .map_err(|e| lex_error_from_transition(&context, e))?;
-        state = transition.state;
-
-        println!("\nactions: {:?}", transition.actions);
-
-        println!("\nINCREMENT");
+        state = state.receive(&mut context, Some(c))?;
         context.increment_position(c);
-        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
-
-        println!("\nRESPOND");
-        context.respond(transition.actions);
-        println!("\ntoken start...{:?}\ncurrent.......{:?}", context.token_start_position, context.current_position);
     }
 
-    let transition = state.receive(None)
-        .map_err(|e| lex_error_from_transition(&context, e))?;
-    context.respond(transition.actions);
+    state = state.receive(&mut context, None)?;
 
     let tokens = context.into_tokens();
     Ok(tokens)
-}
-
-fn lex_error_from_transition(context: &Context, e: TransitionError) -> LexError {
-    use TransitionErrorPosition::*;
-
-    LexError {
-        kind: e.kind,
-        position: match e.position {
-            CurrentPosition => context.current_position,
-            TokenStartPosition => context.token_start_position,
-        },
-    }
 }
 
 #[cfg(test)]
