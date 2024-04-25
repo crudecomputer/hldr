@@ -13,7 +13,7 @@ impl Default for Position {
 }
 
 impl Position {
-    pub fn increment(&mut self, wrap_line: bool) {
+    pub fn advance(&mut self, wrap_line: bool) {
         if wrap_line {
             self.line += 1;
             self.column = 1;

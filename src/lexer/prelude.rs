@@ -6,7 +6,7 @@ use super::tokens::Token;
 
 pub type ReceiveResult = Result<Box<dyn State>, LexError>;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub(super) struct Context {
     pub current_position: Position,
     tokens: Vec<Token>,
@@ -17,8 +17,8 @@ impl Context {
         self.tokens.push(token);
     }
 
-    pub fn increment_position(&mut self, c: char) {
-        self.current_position.increment(matches!(c, '\r' | '\n'));
+    pub fn advance_position(&mut self, c: char) {
+        self.current_position.advance(matches!(c, '\r' | '\n'));
     }
 
     pub fn into_tokens(self) -> Vec<Token> {

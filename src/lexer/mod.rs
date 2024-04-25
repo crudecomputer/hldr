@@ -14,7 +14,7 @@ pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexErro
 
     for c in input {
         state = state.receive(&mut ctx, Some(c))?;
-        ctx.increment_position(c);
+        ctx.advance_position(c);
     }
 
     state.receive(&mut ctx, None)?;
