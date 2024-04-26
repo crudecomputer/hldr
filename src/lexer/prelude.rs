@@ -26,7 +26,7 @@ impl Context {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub(super) struct Stack {
     content: String,
     pub start_position: Position,

@@ -89,3 +89,299 @@ fn identifier_to_token_kind(s: String) -> TokenKind {
         _ => TokenKind::Identifier(s),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+    use crate::Position;
+    use super::*;
+
+    mod in_identifier_tests {
+        use pretty_assertions::assert_eq;
+        use super::*;
+
+        #[test]
+        fn test_receive_identifier_char() {
+            let mut ctx = Context::default();
+            let stack = Stack::default();
+            let state = Box::new(InIdentifier(stack)).receive(&mut ctx, Some('c')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InIdentifier>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_receive_whitespace() {
+            let mut ctx = Context::default();
+            let mut stack = Stack::new(Position { line: 2, column: 3}, 'x');
+            stack.push('y');
+            stack.push('z');
+
+            let state = Box::new(InIdentifier(stack)).receive(&mut ctx, Some(' ')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<Start>());
+            assert_eq!(ctx.into_tokens(), vec![
+                Token {
+                    kind: TokenKind::Identifier("xyz".to_owned()),
+                    position: Position { line: 2, column: 3 },
+                }
+            ]);
+        }
+
+        #[test]
+        fn test_receive_terminators() {
+            for (c, second_token_kind) in [
+                ('\r', TokenKind::LineSep),
+                ('\n', TokenKind::LineSep),
+                (',', TokenKind::Symbol(Symbol::Comma)),
+                ('(', TokenKind::Symbol(Symbol::ParenLeft)),
+                (')', TokenKind::Symbol(Symbol::ParenRight)),
+            ] {
+                let mut ctx = Context::default();
+                ctx.current_position = Position { line: 1, column: 3};
+
+                let mut stack = Stack::new(Position { line: 1, column: 1}, 'a');
+                stack.push('b');
+                stack.push('c');
+
+                let state = Box::new(InIdentifier(stack)).receive(&mut ctx, Some(c)).unwrap();
+
+                assert!((*state).type_id() == TypeId::of::<Start>());
+                assert_eq!(ctx.into_tokens(), vec![
+                    Token {
+                        kind: TokenKind::Identifier("abc".to_owned()),
+                        position: Position { line: 1, column: 1 },
+                    },
+                    Token {
+                        kind: second_token_kind,
+                        position: Position { line: 1, column: 3},
+                    }
+                ]);
+            }
+        }
+
+        #[test]
+        fn test_receive_none() {
+            let mut ctx = Context::default();
+            let mut stack = Stack::new(Position { line: 2, column: 3}, 'x');
+            stack.push('y');
+            stack.push('z');
+
+            let state = Box::new(InIdentifier(stack)).receive(&mut ctx, Some(' ')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<Start>());
+            assert_eq!(ctx.into_tokens(), vec![
+                Token {
+                    kind: TokenKind::Identifier("xyz".to_owned()),
+                    position: Position { line: 2, column: 3 },
+                }
+            ]);
+        }
+    }
+
+    mod in_quoted_identifier_tests {
+        use pretty_assertions::assert_eq;
+        use super::*;
+
+        #[test]
+        fn test_receive_double_quote() {
+            let mut ctx = Context::default();
+            let stack = Stack::default();
+            let state = Box::new(InQuotedIdentifier(stack)).receive(&mut ctx, Some('"')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<AfterQuotedIdentifier>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_receive_identifier_char() {
+            let mut ctx = Context::default();
+            let stack = Stack::default();
+            let state = Box::new(InQuotedIdentifier(stack)).receive(&mut ctx, Some('c')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InQuotedIdentifier>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_receive_whitespace() {
+            let mut ctx = Context::default();
+            let mut stack = Stack::new(Position { line: 2, column: 3}, 'x');
+            stack.push('y');
+            stack.push('z');
+
+            let state = Box::new(InQuotedIdentifier(stack)).receive(&mut ctx, Some(' ')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InQuotedIdentifier>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_receive_terminators() {
+            for c in ['\r', '\n', ',', '(', ')'] {
+                let mut ctx = Context::default();
+                let mut stack = Stack::new(Position { line: 1, column: 1}, 'a');
+                stack.push('b');
+                stack.push('c');
+
+                let state = Box::new(InQuotedIdentifier(stack)).receive(&mut ctx, Some(c)).unwrap();
+
+                assert!((*state).type_id() == TypeId::of::<InQuotedIdentifier>());
+                assert_eq!(Context::default(), ctx);
+            }
+        }
+
+        #[test]
+        fn test_receive_none() {
+            let mut ctx = Context::default();
+            ctx.current_position = Position { line: 7, column: 11 };
+
+            let stack = Stack::default();
+            let err = Box::new(InQuotedIdentifier(stack)).receive(&mut ctx, None).err().unwrap();
+
+            // assert!((*state).type_id() == TypeId::of::<InQuotedIdentifier>());
+            assert!(ctx.into_tokens().is_empty());
+            assert_eq!(
+                LexError {
+                    kind: LexErrorKind::UnclosedQuotedIdentifier,
+                    position: Position { line: 7, column: 11 },
+                },
+                err,
+            )
+        }
+    }
+
+    mod after_quoted_identifier_tests {
+        use pretty_assertions::assert_eq;
+        use super::*;
+
+        #[test]
+        fn test_receive_double_quote() {
+            let mut ctx = Context::default();
+            let stack = Stack::default();
+            let state = Box::new(AfterQuotedIdentifier(stack)).receive(&mut ctx, Some('"')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InQuotedIdentifier>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_receive_whitespace() {
+            let mut ctx = Context::default();
+            let mut stack = Stack::new(Position { line: 2, column: 3}, 'x');
+            stack.push('y');
+            stack.push('z');
+
+            let state = Box::new(AfterQuotedIdentifier(stack)).receive(&mut ctx, Some(' ')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<Start>());
+            assert_eq!(ctx.into_tokens(), vec![
+                Token {
+                    // FIXME: Remove doublequotes from quoted identifiers
+                    kind: TokenKind::QuotedIdentifier("xyz\"".to_owned()),
+                    position: Position { line: 2, column: 3 },
+                }
+            ]);
+        }
+
+        #[test]
+        fn test_receive_terminators() {
+            for (c, second_token_kind) in [
+                ('\r', TokenKind::LineSep),
+                ('\n', TokenKind::LineSep),
+                (',', TokenKind::Symbol(Symbol::Comma)),
+                ('(', TokenKind::Symbol(Symbol::ParenLeft)),
+                (')', TokenKind::Symbol(Symbol::ParenRight)),
+            ] {
+                let mut ctx = Context::default();
+                ctx.current_position = Position { line: 1, column: 3};
+
+                let mut stack = Stack::new(Position { line: 1, column: 1}, 'a');
+                stack.push('b');
+                stack.push('c');
+
+                let state = Box::new(InIdentifier(stack)).receive(&mut ctx, Some(c)).unwrap();
+
+                assert!((*state).type_id() == TypeId::of::<Start>());
+                assert_eq!(ctx.into_tokens(), vec![
+                    Token {
+                        kind: TokenKind::Identifier("abc".to_owned()),
+                        position: Position { line: 1, column: 1 },
+                    },
+                    Token {
+                        kind: second_token_kind,
+                        position: Position { line: 1, column: 3},
+                    }
+                ]);
+            }
+        }
+
+
+    }
+
+    mod identifier_to_token_tests {
+        use super::{Keyword, Symbol, TokenKind, identifier_to_token_kind};
+
+        #[test]
+        fn test_underscore() {
+            assert_eq!(
+                identifier_to_token_kind("_".to_owned()),
+                TokenKind::Symbol(Symbol::Underscore),
+            );
+        }
+
+        #[test]
+        fn test_keyword_as() {
+            assert_eq!(
+                identifier_to_token_kind("as".to_owned()),
+                TokenKind::Keyword(Keyword::As),
+            );
+        }
+
+        #[test]
+        fn test_keyword_schema() {
+            assert_eq!(
+                identifier_to_token_kind("schema".to_owned()),
+                TokenKind::Keyword(Keyword::Schema),
+            );
+        }
+
+        #[test]
+        fn test_keyword_table() {
+            assert_eq!(
+                identifier_to_token_kind("table".to_owned()),
+                TokenKind::Keyword(Keyword::Table),
+            );
+        }
+
+        #[test]
+        fn test_bool_true() {
+            for ident in ["t", "true"] {
+                assert_eq!(
+                    identifier_to_token_kind(ident.to_owned()),
+                    TokenKind::Bool(true),
+                );
+            }
+        }
+
+        #[test]
+        fn test_bool_false() {
+            for ident in ["f", "false"] {
+                assert_eq!(
+                    identifier_to_token_kind(ident.to_owned()),
+                    TokenKind::Bool(false),
+                );
+            }
+        }
+
+        #[test]
+        fn test_anything_else() {
+            for ident in ["__", "True", "FALSE", "_something", "12345", "!@#$"] {
+                assert_eq!(
+                    identifier_to_token_kind(ident.to_owned()),
+                    TokenKind::Identifier(ident.to_owned()),
+                );
+            }
+        }
+    }
+}

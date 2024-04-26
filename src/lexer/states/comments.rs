@@ -20,8 +20,10 @@ impl State for InComment {
 }
 
 #[cfg(test)]
-mod tests {
+mod in_comment_tests {
     use std::any::TypeId;
+    use pretty_assertions::assert_eq;
+
     use crate::Position;
     use crate::lexer::tokens::{Token, TokenKind};
     use super::*;
