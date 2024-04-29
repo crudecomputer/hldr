@@ -51,7 +51,6 @@ impl State for InFloat {
     }
 }
 
-
 /// State after receiving a digit without having previously received a decimal point.
 #[derive(Debug)]
 pub(super) struct InInteger(pub Stack);
@@ -104,4 +103,86 @@ fn can_terminate(c: Option<char>) -> bool {
     c.is_none()
         || matches!(c, Some(')'))
         || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
+}
+
+#[cfg(test)]
+mod numbers_tests {
+    use std::any::TypeId;
+    use crate::Position;
+    use super::*;
+
+    mod in_integer_tests {
+        use super::*;
+
+        #[test]
+        fn test_digit_after_digit() {
+            let mut ctx = Context::default();
+            let stack = Stack::new(Position::default(), '6');
+
+            let state = Box::new(InInteger(stack)).receive(&mut ctx, Some('7')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InInteger>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_underscore_after_digit() {
+            let mut ctx = Context::default();
+            let stack = Stack::new(Position::default(), '9');
+
+            let state = Box::new(InInteger(stack)).receive(&mut ctx, Some('_')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InInteger>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_period_after_digit() {
+            let mut ctx = Context::default();
+            let stack = Stack::new(Position::default(), '9');
+
+            let state = Box::new(InInteger(stack)).receive(&mut ctx, Some('.')).unwrap();
+
+            assert!((*state).type_id() == TypeId::of::<InFloat>());
+            assert_eq!(Context::default(), ctx);
+        }
+
+        #[test]
+        fn test_underscore_after_underscore() {
+            let mut ctx = Context::new(Position { line: 9, column: 10 }, None);
+            let stack = Stack::new(Position::default(), '_');
+
+            let err = Box::new(InInteger(stack)).receive(&mut ctx, Some('_')).err().unwrap();
+
+            assert_eq!(Context::new(Position { line: 9, column: 10 }, None), ctx);
+            assert_eq!(
+                LexError {
+                    kind: LexErrorKind::UnexpectedCharacter('_'),
+                    position: Position { line: 9, column: 10 },
+                },
+                err,
+            );
+        }
+
+        #[test]
+        fn test_period_after_underscore() {
+            let mut ctx = Context::new(Position { line: 9, column: 10 }, None);
+            let stack = Stack::new(Position::default(), '_');
+
+            let err = Box::new(InInteger(stack)).receive(&mut ctx, Some('.')).err().unwrap();
+
+            assert_eq!(Context::new(Position { line: 9, column: 10 }, None), ctx);
+            assert_eq!(
+                LexError {
+                    kind: LexErrorKind::UnexpectedCharacter('.'),
+                    position: Position { line: 9, column: 10 },
+                },
+                err,
+            );
+        }
+    }
+
+    mod in_float_tests {
+
+    }
 }

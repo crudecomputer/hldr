@@ -13,6 +13,11 @@ pub(super) struct Context {
 }
 
 impl Context {
+    #[cfg(test)]
+    pub fn new(current_position: Position, tokens: Option<Vec<Token>>) -> Self {
+        Self { current_position, tokens: tokens.unwrap_or_default() }
+    }
+
     pub fn add_token(&mut self, token: Token) {
         self.tokens.push(token);
     }

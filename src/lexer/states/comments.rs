@@ -20,7 +20,7 @@ impl State for InComment {
 }
 
 #[cfg(test)]
-mod in_comment_tests {
+mod comments_tests {
     use std::any::TypeId;
     use pretty_assertions::assert_eq;
 

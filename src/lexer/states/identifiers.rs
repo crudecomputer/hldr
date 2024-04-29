@@ -91,7 +91,7 @@ fn identifier_to_token_kind(s: String) -> TokenKind {
 }
 
 #[cfg(test)]
-mod tests {
+mod identifiers_tests {
     use std::any::TypeId;
     use crate::Position;
     use super::*;
