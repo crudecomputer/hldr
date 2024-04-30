@@ -1,31 +1,75 @@
 pub mod error;
+mod prelude;
 mod states;
 pub mod tokens;
 
 use error::LexError;
+use prelude::{Context, State};
+use states::Start;
 use tokens::Token;
 
 pub fn tokenize(input: impl Iterator<Item = char>) -> Result<Vec<Token>, LexError> {
-    let mut context = states::Context::new();
-    let mut state: Box<dyn states::State> = Box::new(states::Start);
+    let mut ctx = Context::default();
+    let mut state: Box<dyn State> = Box::new(Start);
 
     for c in input {
-        state = state.receive(&mut context, Some(c))?;
-        context.increment_position(c);
+        state = state.receive(&mut ctx, Some(c))?;
+        ctx.advance_position(c);
     }
 
-    state.receive(&mut context, None)?;
+    state.receive(&mut ctx, None)?;
 
-    let tokens = context.into_tokens();
+    let tokens = ctx.into_tokens();
     Ok(tokens)
 }
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use super::tokenize;
-    use crate::lexer::error::LexError;
+    use crate::lexer::error::{LexError, LexErrorKind};
     use crate::lexer::tokens::{Keyword, Symbol, Token, TokenKind};
     use crate::Position;
+
+    fn tokens(input: &str) -> Vec<Token> {
+        tokenize(input.chars()).unwrap()
+    }
+
+    fn bad_char(c: char, position: Position) -> LexError {
+        LexError {
+            kind: LexErrorKind::UnexpectedCharacter(c),
+            position,
+        }
+    }
+
+    fn bad_number(n: String, position: Position) -> LexError {
+        LexError {
+            kind: LexErrorKind::InvalidNumericLiteral(n),
+            position,
+        }
+    }
+
+    // fn eof(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnexpectedEOF,
+    //         position,
+    //     }
+    // }
+
+    // fn eof_unquoted(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnclosedQuotedIdentifier,
+    //         position,
+    //     }
+    // }
+
+    // fn eof_string(position: Position) -> LexError {
+    //     LexError {
+    //         kind: LexErrorKind::UnclosedString,
+    //         position,
+    //     }
+    // }
+
 
     #[test]
     fn test_empty_input() {
@@ -34,10 +78,10 @@ mod tests {
 
     #[test]
     fn test_input_with_newlines() {
-        let input = "\n\r\r\n\n";
+        let input = "\n\r\n\n";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::LineSep,
                     position: Position { line: 1, column: 1 }
@@ -54,20 +98,16 @@ mod tests {
                     kind: TokenKind::LineSep,
                     position: Position { line: 4, column: 1 }
                 },
-                Token {
-                    kind: TokenKind::LineSep,
-                    position: Position { line: 5, column: 1 }
-                },
-            ])
+            ]
         );
     }
 
     #[test]
     fn test_comment_and_newlines() {
-        let input = "\n-- this is -- a comment\r\n";
+        let input = "\n-- this is -- a comment\n";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::LineSep,
                     position: Position { line: 1, column: 1 }
@@ -79,23 +119,29 @@ mod tests {
                         column: 24
                     }
                 },
-                Token {
-                    kind: TokenKind::LineSep,
-                    position: Position { line: 3, column: 1 }
-                },
-            ])
+            ]
         );
     }
 
     #[test]
     fn test_keywords() {
-        let input = "as";
+        let input = "as schema table";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![Token {
-                kind: TokenKind::Keyword(Keyword::As),
-                position: Position { line: 1, column: 1 },
-            },])
+            tokens(input),
+            vec![
+                Token {
+                    kind: TokenKind::Keyword(Keyword::As),
+                    position: Position { line: 1, column: 1 },
+                },
+                Token {
+                    kind: TokenKind::Keyword(Keyword::Schema),
+                    position: Position { line: 1, column: 4 },
+                },
+                Token {
+                    kind: TokenKind::Keyword(Keyword::Table),
+                    position: Position { line: 1, column: 11 },
+                },
+            ]
         );
     }
 
@@ -103,8 +149,8 @@ mod tests {
     fn test_bools() {
         let input = "true t false f";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::Bool(true),
                     position: Position { line: 1, column: 1 },
@@ -124,7 +170,7 @@ mod tests {
                         column: 14
                     },
                 },
-            ])
+            ]
         );
     }
 
@@ -136,27 +182,28 @@ mod tests {
             "more_things",
             "__and_more__",
             "even_this_💝_",
-            // Postgres interprets these as column names rather than numbers with "trailing junk"
+            // Postgres interprets these as column names rather than numbers with "trailing junk",
+            // so these should be interpreted as identifiers
             "_123",
             "_1__23",
         ] {
             assert_eq!(
-                tokenize(ident.chars()),
-                Ok(vec![Token {
+                tokens(ident),
+                vec![Token {
                     kind: TokenKind::Identifier(ident.to_owned()),
                     position: Position { line: 1, column: 1 },
-                },])
+                }]
             );
         }
     }
 
     #[test]
     fn test_quoted_identifiers() {
-        let input = "\"this is an identifier\" \"and so
-        is this\"";
+        let input = r#""this is an identifier" "and so
+        is this" "and this""#;
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::QuotedIdentifier("\"this is an identifier\"".to_string()),
                     position: Position { line: 1, column: 1 },
@@ -168,7 +215,11 @@ mod tests {
                         column: 25
                     },
                 },
-            ])
+                Token {
+                    kind: TokenKind::QuotedIdentifier("\"and this\"".to_string()),
+                    position: Position { line: 2, column: 18 },
+                },
+            ]
         );
     }
 
@@ -193,11 +244,13 @@ mod tests {
             "1_2.3_4_5",
         ] {
             assert_eq!(
-                tokenize(num.chars()),
-                Ok(vec![Token {
-                    kind: TokenKind::Number(num.to_string()),
+                tokens(num),
+                vec![Token {
+                    kind: TokenKind::Number(num.to_owned()),
                     position: Position { line: 1, column: 1 },
-                },])
+                }],
+                "{}",
+                num,
             );
         }
     }
@@ -207,7 +260,7 @@ mod tests {
         for (input, column) in [("1.1. ", 4), (".1.1 ", 3), ("12_.34", 4)] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_char('.', Position { line: 1, column })),
+                Err(bad_char('.', Position { line: 1, column })),
                 "{}",
                 input,
             );
@@ -215,7 +268,7 @@ mod tests {
         for (input, column) in [("12__34", 4), ("12._34", 4)] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_char('_', Position { line: 1, column })),
+                Err(bad_char('_', Position { line: 1, column })),
                 "{}",
                 input,
             );
@@ -223,7 +276,7 @@ mod tests {
         for input in ["123_ ", "12.34_ "] {
             assert_eq!(
                 tokenize(input.chars()),
-                Err(LexError::bad_number(
+                Err(bad_number(
                     input.trim_end().to_string(),
                     Position { line: 1, column: 1 }
                 )),
@@ -238,8 +291,8 @@ mod tests {
         let input = "'this is text'  'and this is too, isn''t that cool?' 'and
         this!'";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::Text("'this is text'".to_string()),
                     position: Position { line: 1, column: 1 },
@@ -258,7 +311,7 @@ mod tests {
                         column: 54
                     },
                 },
-            ])
+            ]
         );
     }
 
@@ -266,8 +319,8 @@ mod tests {
     fn test_underscores() {
         let input = "_ _ _one two_";
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::Symbol(Symbol::Underscore),
                     position: Position { line: 1, column: 1 },
@@ -287,7 +340,7 @@ mod tests {
                         column: 10
                     },
                 },
-            ])
+            ]
         );
     }
 
@@ -295,8 +348,8 @@ mod tests {
     fn test_other_symbols_followed_by_identifiers() {
         let input = r#" .one ."two" @three @"four" "#;
         assert_eq!(
-            tokenize(input.chars()),
-            Ok(vec![
+            tokens(input),
+            vec![
                 Token {
                     kind: TokenKind::Symbol(Symbol::Period),
                     position: Position { line: 1, column: 2 },
@@ -341,7 +394,7 @@ mod tests {
                         column: 22
                     },
                 },
-            ])
+            ]
         );
     }
 }
