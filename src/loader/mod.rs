@@ -121,8 +121,6 @@ impl<'a, 'b> FragmentRunner<'a, 'b> {
             .simple_query(&query)
             .map_err(LoadError::new)?;
 
-        println!("{:#?}", rows);
-
         if !matches!(rows[..], [SimpleQueryMessage::Row(_), SimpleQueryMessage::CommandComplete(1)]) {
             panic!("expected single row from SQL fragment `{}`", fragment);
         }
@@ -138,31 +136,24 @@ impl<'a, 'b> FragmentRunner<'a, 'b> {
 
         let value = row.get(0).expect("unreachable");
 
-        Ok(value.to_owned())
-
-        /*
-        let row = self
-            .transaction
-            .query_one(&query, &[])
-            .map_err(LoadError::new)?;
-
-        if row.len() != 1 {
-            panic!("expected one column in SQL fragment `{}`", fragment);
-        }
-
-        let column = &row.columns()[0];
-
-        // Panics if not string
-        let value = row.try_get::<_, String>(column.name()).unwrap();
-
-        // FIXME: what if value returned has a single quote - needs escaping
-        // to be used in simple query protocol later on... which means this
-        // relies on switching to extended query protocol, which then relies
-        // on querying the table columns, and yada yada......?
+        // TODO: Using simple query protocol to select value is messy because
+        // it requires stringifying selected values, which also means manually
+        // trying to escape single quotes by replacing with two single quotes.
         //
-        // Would SimpleQueryRow contain an escaped version of the value?
-        Ok(format!("{}::{}", value, column.type_()))
-         */
+        // Using extended query protocol would not; however, it would also complicate
+        // selecting and storing values (since they would no longer just be strings
+        // for all the things) and also requires rewriting the insert logic to rely
+        // on having table column types queried before insert to build the right
+        // type conversions in the literal SQL string.
+        //
+        // That would still most likely be for the best, though.
+        //
+        // Alternatively, maybe SQL fragments could be converted to CTEs in the
+        // insert statement and the inserted values could be selected from the CTE
+        // and completely avoid the round-tripping in either protocol.
+        let value = format!("'{}'", value.replace("'", "''"));
+
+        Ok(value)
     }
 }
 
