@@ -10,10 +10,12 @@ pub enum Keyword {
 
 impl fmt::Display for Keyword {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Keyword::*;
+
         match self {
-            Keyword::As => write!(f, "as"),
-            Keyword::Schema => write!(f, "schema"),
-            Keyword::Table => write!(f, "table"),
+            As => write!(f, "as"),
+            Schema => write!(f, "schema"),
+            Table => write!(f, "table"),
         }
     }
 }
@@ -30,13 +32,15 @@ pub enum Symbol {
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Symbol::*;
+
         match self {
-            Symbol::AtSign => write!(f, "@"),
-            Symbol::Comma => write!(f, ","),
-            Symbol::ParenLeft => write!(f, "("),
-            Symbol::ParenRight => write!(f, ")"),
-            Symbol::Period => write!(f, "."),
-            Symbol::Underscore => write!(f, "_"),
+            AtSign => write!(f, "@"),
+            Comma => write!(f, ","),
+            ParenLeft => write!(f, "("),
+            ParenRight => write!(f, ")"),
+            Period => write!(f, "."),
+            Underscore => write!(f, "_"),
         }
     }
 }
@@ -49,21 +53,25 @@ pub enum TokenKind {
     LineSep,
     Number(String),
     QuotedIdentifier(String),
+    SqlFragment(String),
     Symbol(Symbol),
     Text(String),
 }
 
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use TokenKind::*;
+
         match self {
-            TokenKind::Bool(b) => write!(f, "boolean `{}`", b),
-            TokenKind::Identifier(i) => write!(f, "identifier `{}`", i),
-            TokenKind::Keyword(k) => write!(f, "keyword `{}`", k),
-            TokenKind::LineSep => write!(f, "newline"),
-            TokenKind::Number(n) => write!(f, "number `{}`", n),
-            TokenKind::QuotedIdentifier(i) => write!(f, "quoted identifier `\"{}\"`", i),
-            TokenKind::Symbol(s) => write!(f, "symbol `{}`", s),
-            TokenKind::Text(s) => write!(f, "string '{}'", s),
+            Bool(b) => write!(f, "boolean `{}`", b),
+            Identifier(i) => write!(f, "identifier `{}`", i),
+            Keyword(k) => write!(f, "keyword `{}`", k),
+            LineSep => write!(f, "newline"),
+            Number(n) => write!(f, "number `{}`", n),
+            QuotedIdentifier(i) => write!(f, "quoted identifier `\"{}\"`", i),
+            SqlFragment(s) => write!(f, "SQL fragment `{}`", s),
+            Symbol(s) => write!(f, "symbol `{}`", s),
+            Text(s) => write!(f, "string '{}'", s),
         }
     }
 }

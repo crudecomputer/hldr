@@ -38,9 +38,9 @@ pub(super) struct Stack {
 }
 
 impl Stack {
-    pub fn new(start_position: Position, c: char) -> Self {
+    pub fn new(start_position: Position, c: Option<char>) -> Self {
         Self {
-            content: String::from(c),
+            content: c.map(|c| String::from(c)).unwrap_or_default(),
             start_position,
         }
     }
@@ -62,12 +62,6 @@ impl Stack {
 pub trait State : any::Any + fmt::Debug {
     /// Receives a character (or `None` when EOF) and returns the next state.
     fn receive(self: Box<Self>, ctx: &mut Context, c: Option<char>) -> ReceiveResult;
-
-    /// Returns whether or not the given character can successfully terminate the current state,
-    /// defaulting to only allowing whitespace, newlines, or EOF to terminate.
-    fn can_terminate(&self, c: Option<char>) -> bool {
-        c.is_none() || matches!(c, Some(c) if is_whitespace(c) || is_newline(c))
-    }
 }
 
 /// Utility for boxing the state and returning a single-action transition

@@ -26,6 +26,7 @@ See the corresponding [VS Code extension](https://github.com/kevlarr/vscode-hldr
    5. [Named records](#named-records)
    6. [References](#references)
    7. [Table aliases](#table-aliases)
+   8. [SQL fragments](#sql-fragments)
 5. [Planned features](#planned-features)
 
 ## Overview
@@ -39,6 +40,7 @@ Current language constructs include:
 - Primitive literal values: booleans, numbers, and text strings
 - References to previous columns in the same record or named records in either the same
   or any other table
+- SQL `select` fragment literals
 - Inline comments
 
 References are primarily what sets Placeholder apart from other declarative formats (eg. JSON),
@@ -296,6 +298,38 @@ table pet (
   ( person_id @p.p1.id )
 )
 ```
+
+### SQL Fragments
+
+Arbitrary `SELECT` statements can be embedded as values by using backticks and
+simply omitting the `SELECT` keyword.
+
+```
+table t1 (
+  (
+    col1 `now()`
+    col2 `current_timestamp`
+    col3 `ts from (select current_timestamp as ts) q`
+  )
+)
+```
+
+Fragments work with references, too, and referenced fragments are cached instead
+of re-evaluated in the referencing column.
+Otherwise, declarations like `col2 @col1` below could lead to situations where
+they look like their values should be equal but are not if the fragment result
+is volatile as below with `statement_timestamp()`.
+
+```
+table t1 (
+  (
+    col1 `statement_timestamp()` -- 2024-04-30 22:57:24.111111-04
+    col2 @col1                   -- 2024-04-30 22:57:24.111111-04
+    col3 `statement_timestamp()` -- 2024-04-30 22:57:27.333333-04
+  )
+)
+```
+
 
 ## Planned features
 

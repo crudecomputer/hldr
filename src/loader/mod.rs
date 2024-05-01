@@ -85,7 +85,7 @@ impl<'a, 'b> Loader<'a, 'b> {
         table_scope: &str,
         attributes: &[Attribute],
     ) -> Result<SimpleQueryRow, LoadError> {
-        let statement = InsertStatement::build()
+        let statement = InsertStatement::build(self.transaction)
             .attributes(attributes)
             .current_scope(table_scope)
             .qualified_table_name(qualified_table_name)
@@ -105,15 +105,79 @@ impl<'a, 'b> Loader<'a, 'b> {
     }
 }
 
-struct InsertStatementBuilder<'a, 'c, 'q, 'r> {
-    attributes: &'a [Attribute],
-    attribute_indexes: HashMap<&'a str, usize>,
-    current_scope: &'c str,
-    qualified_table_name: &'q str,
-    refmap: Option<&'r RefMap>,
+struct FragmentRunner<'a, 'b>
+where
+    'b: 'a,
+{
+    transaction: &'a mut Transaction<'b>,
 }
 
-impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
+impl<'a, 'b> FragmentRunner<'a, 'b> {
+    fn select(&mut self, fragment: &str) -> Result<String, LoadError> {
+        let query = format!("SELECT {}", fragment);
+
+        let mut rows = self
+            .transaction
+            .simple_query(&query)
+            .map_err(LoadError::new)?;
+
+        if !matches!(rows[..], [SimpleQueryMessage::Row(_), SimpleQueryMessage::CommandComplete(1)]) {
+            panic!("expected single row from SQL fragment `{}`", fragment);
+        }
+
+        let row = match rows.remove(0) {
+            SimpleQueryMessage::Row(row) => row,
+            _ => unreachable!(),
+        };
+
+        if row.len() != 1 {
+            panic!("expected one column in SQL fragment result `{}`", fragment);
+        }
+
+        let value = row.get(0).expect("unreachable");
+
+        // TODO: Using simple query protocol to select value is messy because
+        // it requires stringifying selected values, which also means manually
+        // trying to escape single quotes by replacing with two single quotes.
+        //
+        // Using extended query protocol would not; however, it would also complicate
+        // selecting and storing values (since they would no longer just be strings
+        // for all the things) and also requires rewriting the insert logic to rely
+        // on having table column types queried before insert to build the right
+        // type conversions in the literal SQL string.
+        //
+        // That would still most likely be for the best, though.
+        //
+        // Alternatively, maybe SQL fragments could be converted to CTEs in the
+        // insert statement and the inserted values could be selected from the CTE
+        // and completely avoid the round-tripping in either protocol, but this
+        // would require a rewrite of the insert statement builder.
+        let value = format!("'{}'", value.replace("'", "''"));
+
+        Ok(value)
+    }
+}
+
+struct InsertStatementBuilder<
+    'attribute,
+    'current_scope,
+    'fragment1,
+    'fragment2,
+    'qualified_table_name,
+    'refmap,
+>
+where
+    'fragment2: 'fragment1
+{
+    attributes: &'attribute [Attribute],
+    attribute_indexes: HashMap<&'attribute str, usize>,
+    current_scope: &'current_scope str,
+    fragment_runner: FragmentRunner<'fragment1, 'fragment2>,
+    qualified_table_name: &'qualified_table_name str,
+    refmap: Option<&'refmap RefMap>,
+}
+
+impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> {
     fn attributes(mut self, attributes: &'a [Attribute]) -> Self {
         self.attributes = attributes;
         self.attribute_indexes = HashMap::new();
@@ -168,7 +232,7 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
         Ok(InsertStatement(statement))
     }
 
-    fn write_value(&self, attribute: &Attribute, out: &mut String) -> Result<(), LoadError> {
+    fn write_value(&mut self, attribute: &Attribute, out: &mut String) -> Result<(), LoadError> {
         match &attribute.value {
             Value::Bool(b) => out.push_str(&b.to_string()),
             Value::Number(n) => out.push_str(n),
@@ -184,6 +248,10 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
 
                 // TODO: Probably best to avoid the recursion
                 self.write_value(attribute, out)?;
+            }
+            Value::SqlFragment(s) => {
+                let value = self.fragment_runner.select(s)?;
+                out.push_str(&value);
             }
             Value::Reference(r) => {
                 let val = self.follow_ref(r)?;
@@ -228,11 +296,12 @@ impl<'a, 'c, 'q, 'r> InsertStatementBuilder<'a, 'c, 'q, 'r> {
 struct InsertStatement(String);
 
 impl InsertStatement {
-    fn build() -> InsertStatementBuilder<'static, 'static, 'static, 'static> {
+    fn build<'f1, 'f2>(t: &'f1 mut Transaction<'f2>) -> InsertStatementBuilder<'static, 'static, 'f1, 'f2, 'static, 'static> {
         InsertStatementBuilder {
             attributes: &[],
             attribute_indexes: HashMap::new(),
             current_scope: "",
+            fragment_runner: FragmentRunner { transaction: t },
             qualified_table_name: "",
             refmap: None,
         }

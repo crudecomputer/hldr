@@ -3,8 +3,9 @@ use crate::lexer::tokens::{Symbol, Token, TokenKind};
 use crate::lexer::prelude::*;
 use super::identifiers::{InIdentifier, InQuotedIdentifier};
 use super::numbers::InInteger;
-use super::text::InText;
+use super::sql::InSqlSelect;
 use super::symbols::{AfterPeriod, AfterSingleDash};
+use super::text::InText;
 
 
 /// State corresponding to the start of input or after successfully extracting a token.
@@ -48,27 +49,31 @@ impl State for Start {
                 to(Start)
             }
             '.' => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(AfterPeriod(stack))
             }
             '-' => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(AfterSingleDash(stack))
             }
             '\'' => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(InText(stack))
             }
             '"' => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(InQuotedIdentifier(stack))
             }
+            '`' => {
+                let stack = Stack::new(ctx.current_position, None);
+                to(InSqlSelect(stack))
+            }
             '0'..='9' => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(InInteger(stack))
             }
             c if is_identifier_char(c) => {
-                let stack = Stack::new(ctx.current_position, c);
+                let stack = Stack::new(ctx.current_position, Some(c));
                 to(InIdentifier(stack))
             }
             _ if is_whitespace(c) => {
