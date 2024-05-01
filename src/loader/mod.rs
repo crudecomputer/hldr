@@ -150,7 +150,8 @@ impl<'a, 'b> FragmentRunner<'a, 'b> {
         //
         // Alternatively, maybe SQL fragments could be converted to CTEs in the
         // insert statement and the inserted values could be selected from the CTE
-        // and completely avoid the round-tripping in either protocol.
+        // and completely avoid the round-tripping in either protocol, but this
+        // would require a rewrite of the insert statement builder.
         let value = format!("'{}'", value.replace("'", "''"));
 
         Ok(value)

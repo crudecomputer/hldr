@@ -318,7 +318,7 @@ Fragments work with references, too, and referenced fragments are cached instead
 of re-evaluated in the referencing column.
 Otherwise, declarations like `col2 @col1` below could lead to situations where
 they look like their values should be equal but are not if the fragment result
-is volatile as below with `statement_timestamp()`, calling `nextval('sequence_name')`, etc.
+is volatile as below with `statement_timestamp()`.
 
 ```
 table t1 (
