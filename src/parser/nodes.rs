@@ -85,6 +85,7 @@ pub enum Value {
     Bool(bool),
     Number(Box<String>),
     Reference(Box<Reference>),
+    SqlFragment(Box<String>),
     Text(Box<String>),
 }
 

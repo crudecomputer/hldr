@@ -98,7 +98,6 @@ impl State for InInteger {
     }
 }
 
-// TODO: This is another indication that the `can_terminate` logic needs overhauling
 fn can_terminate(c: Option<char>) -> bool {
     c.is_none()
         || matches!(c, Some(')'))

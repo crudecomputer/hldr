@@ -481,6 +481,11 @@ mod attribute_states {
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
+                TokenKind::SqlFragment(s) => {
+                    let value = nodes::Value::SqlFragment(Box::new(s));
+                    ctx.push_attribute(attribute_name, value);
+                    to(ReceivedAttributeValue)
+                }
                 TokenKind::Symbol(Symbol::AtSign) => to(ReceivedReferenceStart(attribute_name)),
                 TokenKind::Text(t) => {
                     let value = nodes::Value::Text(Box::new(t));
