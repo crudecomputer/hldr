@@ -2,7 +2,13 @@ pub mod error;
 
 use crate::analyzer::ValidatedParseTree;
 use crate::parser::nodes::{
-    Attribute, Reference, StructuralIdentity, StructuralNode, Table, Value,
+    Attribute,
+    Reference,
+    ReferencedColumn,
+    StructuralIdentity,
+    StructuralNode,
+    Table,
+    Value,
 };
 use error::{ClientError, LoadError};
 use postgres::{config::Config, Client, NoTls, SimpleQueryMessage, SimpleQueryRow, Transaction};
@@ -153,6 +159,7 @@ impl<'a, 'b> FragmentRunner<'a, 'b> {
         // and completely avoid the round-tripping in either protocol, but this
         // would require a rewrite of the insert statement builder.
         let value = format!("'{}'", value.replace("'", "''"));
+        println!("VALUE: {}", value);
 
         Ok(value)
     }
@@ -236,26 +243,26 @@ impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> 
         match &attribute.value {
             Value::Bool(b) => out.push_str(&b.to_string()),
             Value::Number(n) => out.push_str(n),
-            Value::Reference(r) if r.record.is_none() => {
+            Value::Reference(Reference::ColumnLevel(colref)) => {
                 // Column-reference could refer to a literal value, another
                 // column reference, or a reference to a different record
                 let index = self
                     .attribute_indexes
-                    .get(&r.column.as_ref())
+                    .get(&colref.column.as_ref())
                     .expect("missing column");
 
                 let attribute = &self.attributes[*index];
 
-                // TODO: Probably best to avoid the recursion
+                // TODO: Probably best to avoid the recursion?
                 self.write_value(attribute, out)?;
+            }
+            Value::Reference(refval) => {
+                let val = self.follow_ref(attribute, refval)?;
+                out.push_str(&val);
             }
             Value::SqlFragment(s) => {
                 let value = self.fragment_runner.select(s)?;
                 out.push_str(&value);
-            }
-            Value::Reference(r) => {
-                let val = self.follow_ref(r)?;
-                out.push_str(&val);
             }
             Value::Text(t) => out.push_str(t),
         }
@@ -263,29 +270,36 @@ impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> 
         Ok(())
     }
 
-    fn follow_ref(&self, refval: &Reference) -> Result<String, LoadError> {
-        let key = match (
-            refval.schema.as_ref(),
-            refval.table.as_ref(),
-            refval.record.as_ref(),
-        ) {
-            (Some(schema), Some(table), Some(record)) => {
-                format!("{}.{}.{}", schema, table, record)
+    fn follow_ref(&self, attribute: &Attribute, refval: &Reference) -> Result<String, LoadError> {
+        use ReferencedColumn::*;
+
+        let mut col = &attribute.name;
+        let key = match refval {
+            Reference::SchemaLevel(s) => {
+                if let Explicit(c) = &s.column {
+                    col = &c;
+                }
+                format!("{}.{}.{}", s.schema, s.table, s.record)
             }
-            (None, Some(table), Some(record)) => {
-                format!("{}.{}", table, record)
+            Reference::TableLevel(t) => {
+                if let Explicit(c) = &t.column {
+                    col = &c;
+                }
+                format!("{}.{}", t.table, t.record)
             }
-            (None, None, Some(record)) => {
-                format!("{}.{}", self.current_scope, record)
+            Reference::RecordLevel(r) => {
+                if let Explicit(c) = &r.column {
+                    col = &c;
+                }
+                format!("{}.{}", self.current_scope, r.record)
             }
             // Column-references are handled differently, as there is no record in
             // the map to look up
-            _ => panic!("invalid reference"),
+            Reference::ColumnLevel(_) => unreachable!(),
         };
 
-        let col: &str = refval.column.as_ref();
         let row = self.refmap.expect("no refmap set").get(&key).unwrap();
-        let val = row.try_get(col);
+        let val = row.try_get(col.as_str());
 
         Ok(val
             .unwrap_or_else(|_| panic!("no column '{}' in record {}", col, key))

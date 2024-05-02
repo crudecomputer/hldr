@@ -273,7 +273,45 @@ There are several supported reference formats:
 | Schema-qualified | `@myschema.mytable.record.column` | A previously-declared record in a table explicitly nested under a schema |
 | Table-qualified | `@mytable.record.column` | A previously-declared record in a top-level table not nested under a schema |
 | Record-qualified | `@record.column` | A previously-declared record in the same table scope as the current record being declared |
-| Column-qualified | `@column` | A previously-declared column in the same record being declared (**note:** the column being referenced is not required to be a literal value; it can be be another reference to a column or other record entirely) |
+| Column (unqualified) | `@column` | A previously-declared column in the same record being declared (**note:** the column being referenced is not required to be a literal value; it can be be another reference to a column or other record entirely) |
+
+Additionally, **qualified references** can *omit the column name* if it matches the attribute being assigned to:
+
+```
+table t (
+  rec ( some_column 'a value' )
+
+  -- These are equivalent; note the trailing period in the latter
+  ( some_column @rec.some_column )
+  ( some_column @rec. )
+)
+
+-- Supported in fully-qualified references as well
+schema myschema (
+  table mytable1 (
+    myrecord ( a_different_column true )
+  )
+  table mytable2 (
+    ( a_different_column @myschema.mytable1.myrecord. )
+  )
+)
+```
+
+Omitting the trailing period will cause `hldr` to interpret the final identifier in the reference
+as the column:
+
+```
+table mytable (
+  record1 (
+    some_column 'a value'
+  )
+
+  -- ERROR: No column `record1` in the record being declared
+  record2 (
+    some_column @record1
+  )
+)
+```
 
 ### Aliases
 
@@ -302,7 +340,7 @@ table pet (
 ### SQL Fragments
 
 Arbitrary `SELECT` statements can be embedded as values by using backticks and
-simply omitting the `SELECT` keyword.
+omitting the `SELECT` keyword.
 
 ```
 table t1 (

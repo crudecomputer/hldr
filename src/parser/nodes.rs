@@ -83,19 +83,71 @@ impl Attribute {
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Bool(bool),
-    Number(Box<String>),
-    Reference(Box<Reference>),
-    SqlFragment(Box<String>),
-    Text(Box<String>),
+    Number(String),
+    Reference(Reference),
+    SqlFragment(String),
+    Text(String),
 }
 
-// TODO: This should be handled by an enum, because this structure doesn't forbid
-// having a schema BUT not having a table, etc. and invalid situations should not
-// be representable.
+/// The set of possible reference types, with varying levels
+/// of qualification.
 #[derive(Debug, PartialEq)]
-pub struct Reference {
-    pub schema: Option<String>,
-    pub table: Option<String>,
-    pub record: Option<String>,
+pub enum Reference {
+    ColumnLevel(ColumnLevelReference),
+    RecordLevel(RecordLevelReference),
+    TableLevel(TableLevelReference),
+    SchemaLevel(SchemaLevelReference),
+}
+
+/// The set of possible column reference values, either explicit
+/// with a name or implicit without one, in which case the column
+/// being referenced is inferred from the attribute.
+#[derive(Debug, PartialEq)]
+pub enum ReferencedColumn {
+    Explicit(String),
+    Implicit,
+}
+
+/// References to a column in the same record, eg:
+///
+///     @column
+#[derive(Debug, PartialEq)]
+pub struct ColumnLevelReference {
     pub column: String,
+}
+
+/// References that are record-qualified with either explicit or implicit
+/// column reference, eg:
+///
+///     @record.column  -- explicit column
+///     @record.        -- implicit column
+#[derive(Debug, PartialEq)]
+pub struct RecordLevelReference {
+    pub record: String,
+    pub column: ReferencedColumn,
+}
+
+/// References that are table-qualified with either explicit or implicit
+/// column reference, eg:
+///
+///     @table.record.column  -- explicit column
+///     @table.record.        -- implicit column
+#[derive(Debug, PartialEq)]
+pub struct TableLevelReference {
+    pub table: String,
+    pub record: String,
+    pub column: ReferencedColumn,
+}
+
+/// References that are schema-qualified with either explicit or implicit
+/// column reference, eg:
+///
+///     @schema.table.record.column -- explicit column
+///     @schema.table.record.       -- implicit column
+#[derive(Debug, PartialEq)]
+pub struct SchemaLevelReference {
+    pub schema: String,
+    pub table: String,
+    pub record: String,
+    pub column: ReferencedColumn,
 }

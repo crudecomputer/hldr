@@ -1,11 +1,13 @@
 use super::error::ParseError;
 use super::nodes;
+use crate::Position;
 use crate::lexer::tokens::{Keyword, Symbol, Token, TokenKind};
 use std::mem;
 
 type ParseResult = Result<Box<dyn State>, ParseError>;
 
 pub trait State: std::fmt::Debug {
+    // TODO: Use `Box<Self>` like lexer `State` to make consumption easier
     fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult;
 }
 
@@ -477,18 +479,18 @@ mod attribute_states {
                     to(ReceivedAttributeValue)
                 }
                 TokenKind::Number(n) => {
-                    let value = nodes::Value::Number(Box::new(n));
+                    let value = nodes::Value::Number(n);
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
                 TokenKind::SqlFragment(s) => {
-                    let value = nodes::Value::SqlFragment(Box::new(s));
+                    let value = nodes::Value::SqlFragment(s);
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
                 TokenKind::Symbol(Symbol::AtSign) => to(ReceivedReferenceStart(attribute_name)),
                 TokenKind::Text(t) => {
-                    let value = nodes::Value::Text(Box::new(t));
+                    let value = nodes::Value::Text(t);
                     ctx.push_attribute(attribute_name, value);
                     to(ReceivedAttributeValue)
                 }
@@ -527,7 +529,7 @@ mod attribute_states {
     impl State for ReceivedReferenceIdentifier {
         fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             let attribute_name = mem::take(&mut self.0);
-            let mut identifiers = mem::take(&mut self.1);
+            let identifiers = mem::take(&mut self.1);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
@@ -541,31 +543,10 @@ mod attribute_states {
                 | TokenKind::Symbol(Symbol::ParenRight)
                     if identifiers.len() < 5 =>
                 {
-                    let (column, record, table, schema) = (
-                        // In this state there should always be at least one identifier
-                        identifiers.pop().expect("expected element"),
-                        identifiers.pop(),
-                        identifiers.pop(),
-                        identifiers.pop(),
-                    );
-                    if let Some(Identifier {
-                        quoted: true,
-                        value,
-                    }) = &record
-                    {
-                        return Err(ParseError::rec_quot(value.to_owned(), t.position));
-                    }
-                    // The reference value node has no concept of whether or not the original
-                    // token was quoted or not
-                    let reference = nodes::Reference {
-                        schema: schema.map(|s| s.value),
-                        table: table.map(|t| t.value),
-                        record: record.map(|r| r.value),
-                        column: column.value,
-                    };
+                    let reference = identifiers_to_explicit_reference(t.position, identifiers)?;
                     let attribute = nodes::Attribute {
                         name: attribute_name,
-                        value: nodes::Value::Reference(Box::new(reference)),
+                        value: nodes::Value::Reference(reference),
                     };
                     ctx.push_attribute_to_record_or_panic(attribute);
 
@@ -575,7 +556,7 @@ mod attribute_states {
                         TokenKind::Symbol(Symbol::ParenRight) => {
                             defer_to(&mut InRecordScope, ctx, Some(t))
                         }
-                        _ => to(record_states::InRecordScope),
+                        _ => to(InRecordScope),
                     }
                 }
                 _ => Err(ParseError::token(t)),
@@ -587,7 +568,7 @@ mod attribute_states {
     pub struct ReceivedReferenceSeparator(String, Vec<Identifier>);
 
     impl State for ReceivedReferenceSeparator {
-        fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
+        fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
             // TODO: This is probably code smell at this point. Since the context
             // already makes so many assumptions about what is on its stack and
             // panics if items are wrong, should these all just be pushing to the
@@ -601,12 +582,13 @@ mod attribute_states {
             let quoted = matches!(&t.kind, TokenKind::QuotedIdentifier(_));
 
             // Quoted identifiers are allowed in schema, table, and columns
-            // names but not record names, eg. the following patterns are valid:
+            // names but not record names, eg. the following patterns are valid
+            // (with `[ ]` indicating optional identifiers):
             //
-            //   @ (un)quoted . (un)quoted . UNQUOTED   . (un)quoted
-            //   @ (un)quoted . UNQUOTED   . (un)quoted
-            //   @ UNQUOTED   . (un)quoted
-            //   @ quo(un)ted
+            //   @ (un)quoted . (un)quoted     . UNQUOTED       . [ (un)quoted ]
+            //   @ (un)quoted . UNQUOTED       . [ (un)quoted ]
+            //   @ UNQUOTED   . [ (un)quoted ]
+            //   @ (un)quoted
             //
             // This implies that simple or positional length checks are insufficient
             // to determine whether or not a quoted identifier is valid, as it depends
@@ -619,6 +601,28 @@ mod attribute_states {
                         value: ident,
                     });
                     to(ReceivedReferenceIdentifier(attribute_name, identifiers))
+                }
+                // This state can, however, determine if it can successfully terminate without
+                // receiving an identifier, since that is allowed for references above the
+                // column level when using implicit column references.
+                TokenKind::LineSep
+                | TokenKind::Symbol(Symbol::Comma)
+                | TokenKind::Symbol(Symbol::ParenRight)
+                    if identifiers.len() < 4 =>
+                {
+                    let reference = identifiers_to_implicit_reference(t.position, identifiers)?;
+                    let attribute = nodes::Attribute {
+                        name: attribute_name,
+                        value: nodes::Value::Reference(reference),
+                    };
+                    ctx.push_attribute_to_record_or_panic(attribute);
+
+                    match t.kind {
+                        TokenKind::Symbol(Symbol::ParenRight) => {
+                            defer_to(&mut InRecordScope, ctx, Some(t))
+                        }
+                        _ => to(InRecordScope),
+                    }
                 }
                 _ => Err(ParseError::exp_ident(t)),
             }
@@ -651,5 +655,89 @@ mod attribute_states {
                 _ => Err(ParseError::exp_close_attr(t)),
             }
         }
+    }
+
+    fn identifiers_to_explicit_reference(position: Position, identifiers: Vec<Identifier>) -> Result<nodes::Reference, ParseError> {
+        use nodes::*;
+        use ReferencedColumn::Explicit;
+
+        assert!(
+            (1..=4).contains(&identifiers.len()),
+            "unexpected identifiers length for explicit reference: {:?}",
+            identifiers,
+        );
+
+        let mut identifiers = identifiers.into_iter().rev();
+
+        let column = identifiers.next().unwrap();
+        let record = identifiers.next();
+        let table = identifiers.next();
+        let schema = identifiers.next();
+
+        if let Some(Identifier { quoted: true, value }) = &record {
+            return Err(ParseError::rec_quot(value.to_owned(), position));
+        }
+
+        Ok(match (schema, table, record) {
+            (Some(s), Some(t), Some(r)) => Reference::SchemaLevel(SchemaLevelReference {
+                schema: s.value,
+                table: t.value,
+                record: r.value,
+                column: Explicit(column.value),
+            }),
+            (None, Some(t), Some(r)) => Reference::TableLevel(TableLevelReference {
+                table: t.value,
+                record: r.value,
+                column: Explicit(column.value),
+            }),
+            (None, None, Some(r)) => Reference::RecordLevel(RecordLevelReference {
+                record: r.value,
+                column: Explicit(column.value),
+            }),
+            (None, None, None) => Reference::ColumnLevel(ColumnLevelReference {
+                column: column.value,
+            }),
+            _ => unreachable!(),
+        })
+    }
+
+    fn identifiers_to_implicit_reference(position: Position, identifiers: Vec<Identifier>) -> Result<nodes::Reference, ParseError> {
+        use nodes::*;
+        use ReferencedColumn::Implicit;
+
+        assert!(
+            (1..=3).contains(&identifiers.len()),
+            "unexpected identifiers length for implicit reference: {:?}",
+            identifiers,
+        );
+
+        let mut identifiers = identifiers.into_iter().rev();
+
+        let record = identifiers.next().unwrap();
+        let table = identifiers.next();
+        let schema = identifiers.next();
+
+        if let Identifier { quoted: true, value } = &record {
+            return Err(ParseError::rec_quot(value.to_owned(), position));
+        }
+
+        Ok(match (schema, table) {
+            (Some(s), Some(t)) => Reference::SchemaLevel(SchemaLevelReference {
+                schema: s.value,
+                table: t.value,
+                record: record.value,
+                column: Implicit,
+            }),
+            (None, Some(t)) => Reference::TableLevel(TableLevelReference {
+                table: t.value,
+                record: record.value,
+                column: Implicit,
+            }),
+            (None, None) => Reference::RecordLevel(RecordLevelReference {
+                record: record.value,
+                column: Implicit,
+            }),
+            _ => unreachable!(),
+        })
     }
 }

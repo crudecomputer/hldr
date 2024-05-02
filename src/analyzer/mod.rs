@@ -120,30 +120,26 @@ fn analyze_record(
             });
         }
 
-        if let Value::Reference(val) = &attr.value {
+        if let Value::Reference(refval) = &attr.value {
             // Column-level references only need validation that the column being referenced
             // is explicitly declared in the record already, since they cannot come from the
             // database.
-            if val.record.is_none() {
-                if !attrnames.contains(&val.column) {
+            if let Reference::ColumnLevel(c) = refval {
+                if !attrnames.contains(&c.column) {
                     return Err(AnalyzeError {
                         kind: AnalyzeErrorKind::ColumnNotFound {
-                            column: val.column.clone(),
+                            column: c.column.clone(),
                         },
                     });
                 }
                 continue;
             }
 
-            let expected_key = match (val.schema.as_ref(), val.table.as_ref(), val.record.as_ref())
-            {
-                (Some(schema), Some(table), Some(record)) => {
-                    format!("{}.{}.{}", schema, table, record)
-                }
-                (None, Some(table), Some(record)) => format!("{}.{}", table, record),
-                // Unqualified references to other records are only permitted within the same parent table scope.
-                (None, None, Some(record)) => format!("{}.{}", parent_scope, record),
-                _ => unreachable!("invalid reference: {:?}", val),
+            let expected_key = match refval {
+                Reference::SchemaLevel(s) => format!("{}.{}.{}", s.schema, s.table, s.record),
+                Reference::TableLevel(t) => format!("{}.{}", t.table, t.record),
+                Reference::RecordLevel(r) => format!("{}.{}", parent_scope, r.record),
+                Reference::ColumnLevel(_) => unreachable!(),
             };
 
             if !refset.contains(&expected_key) {
