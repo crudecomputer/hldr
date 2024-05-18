@@ -25,7 +25,7 @@ pub mod error;
 
 use crate::parser::nodes::*;
 use error::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub type AnalyzeResult = Result<ValidatedParseTree, AnalyzeError>;
 
@@ -37,7 +37,31 @@ impl ValidatedParseTree {
     }
 }
 
-type RefSet = HashSet<String>;
+// Map of possibly duplicate record names to the scopes they are defined in
+#[derive(Debug, Default)]
+struct RefSet(HashMap<String, HashSet<String>>);
+
+impl RefSet {
+    /// Attempts to add the record with the given scope to the set.
+    /// Returns true if there was not already a record with the same name & scope
+    /// or returns false if there was.
+    fn insert_record_scope(&mut self, scope: &str, record_name: &str) -> bool {
+        self.0
+            .entry(record_name.to_owned())
+            .or_insert_with(HashSet::new)
+            .insert(scope.to_owned())
+    }
+
+    fn get_record_scopes(&self, record_name: &str) -> Option<&HashSet<String>> {
+        self.0.get(record_name)
+    }
+
+    fn has_record_scope(&self, record_name: &str, scope: &str) -> bool {
+        self.get_record_scopes(record_name)
+            .map(|scopes| scopes.contains(scope))
+            .unwrap_or(false)
+    }
+}
 
 pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
     let mut refset = RefSet::default();
@@ -70,6 +94,7 @@ fn analyze_table(
             .alias
             .as_ref()
             .unwrap_or(&table.identity.name);
+
         match schema {
             Some(schema) => format!(
                 "{}.{}",
@@ -87,9 +112,7 @@ fn analyze_table(
         analyze_record(record, refset, &table_scope)?;
 
         if let Some(name) = &record.name {
-            let key = format!("{}.{}", table_scope, name);
-
-            if !refset.insert(key) {
+            if !refset.insert_record_scope(&table_scope, name) {
                 return Err(AnalyzeError {
                     kind: AnalyzeErrorKind::DuplicateRecord {
                         scope: table_scope,
@@ -122,8 +145,7 @@ fn analyze_record(
 
         if let Value::Reference(refval) = &attr.value {
             // Column-level references only need validation that the column being referenced
-            // is explicitly declared in the record already, since they cannot come from the
-            // database.
+            // is explicitly declared in the record already
             if let Reference::ColumnLevel(c) = refval {
                 if !attrnames.contains(&c.column) {
                     return Err(AnalyzeError {
@@ -135,19 +157,59 @@ fn analyze_record(
                 continue;
             }
 
-            let expected_key = match refval {
-                Reference::SchemaLevel(s) => format!("{}.{}.{}", s.schema, s.table, s.record),
-                Reference::TableLevel(t) => format!("{}.{}", t.table, t.record),
-                Reference::RecordLevel(r) => format!("{}.{}", parent_scope, r.record),
-                Reference::ColumnLevel(_) => unreachable!(),
-            };
+            match refval {
+                Reference::SchemaLevel(s) => {
+                    let scope = format!("{}.{}", s.schema, s.table);
 
-            if !refset.contains(&expected_key) {
-                return Err(AnalyzeError {
-                    kind: AnalyzeErrorKind::RecordNotFound {
-                        record: expected_key,
-                    },
-                });
+                    if !refset.has_record_scope(&s.record, &scope) {
+                        return Err(AnalyzeError {
+                            kind: AnalyzeErrorKind::RecordNotFound {
+                                record: format!("{}.{}", scope, s.record),
+                            },
+                        });
+                    }
+                }
+                Reference::TableLevel(t) => {
+                    if !refset.has_record_scope(&t.record, &t.table) {
+                        return Err(AnalyzeError {
+                            kind: AnalyzeErrorKind::RecordNotFound {
+                                record: format!("{}.{}", t.table, t.record),
+                            },
+                        });
+                    }
+                }
+                Reference::RecordLevel(r) => {
+                    match refset.get_record_scopes(&r.record) {
+                        None => {
+                            return Err(AnalyzeError {
+                                kind: AnalyzeErrorKind::RecordNotFound {
+                                    record: r.record.clone(),
+                                },
+                            });
+                        }
+                        Some(scopes) => {
+                            // An empty scopes set at this point indicates a bug in the
+                            // analyzer code rather than a result of user input, valid
+                            // or otherwise
+                            assert!(scopes.len() > 0, "record scopes should not be empty");
+
+                            // If there is only a single record from any scope with a matching
+                            // name, then the reference is valid.
+                            //
+                            // If there are multiple scopes with a record of the same name,
+                            // then an unqualified reference is ambiguous unless the current
+                            // table scope has a record of the same name.
+                            if scopes.len() > 1 && !scopes.contains(parent_scope) {
+                                return Err(AnalyzeError {
+                                    kind: AnalyzeErrorKind::AmbiguousRecord {
+                                        record: r.record.clone(),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+                Reference::ColumnLevel(_) => unreachable!(),
             }
         }
     }

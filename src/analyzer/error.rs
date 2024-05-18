@@ -4,6 +4,7 @@ use std::fmt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnalyzeErrorKind {
+    AmbiguousRecord { record: String },
     ColumnNotFound { column: String },
     DuplicateColumn { scope: String, column: String },
     DuplicateRecord { scope: String, record: String },
@@ -12,18 +13,23 @@ pub enum AnalyzeErrorKind {
 
 impl fmt::Display for AnalyzeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use AnalyzeErrorKind::*;
+
         match self {
-            AnalyzeErrorKind::ColumnNotFound { column } => {
+            AmbiguousRecord { record } => {
+                write!(f, "ambiguous record `{}`", record)
+            }
+            ColumnNotFound { column } => {
                 write!(f, "referenced column `{}` not found", column)
             }
-            AnalyzeErrorKind::DuplicateColumn { scope, column } => {
+            DuplicateColumn { scope, column } => {
                 // TODO: Need position
                 write!(f, "duplicate column `{}` in scope `{}`", column, scope)
             }
-            AnalyzeErrorKind::DuplicateRecord { scope, record } => {
+            DuplicateRecord { scope, record } => {
                 write!(f, "duplicate record `{}` in scope `{}`", record, scope)
             }
-            AnalyzeErrorKind::RecordNotFound { record } => {
+            RecordNotFound { record } => {
                 write!(f, "record `{}` not found", record)
             }
         }
