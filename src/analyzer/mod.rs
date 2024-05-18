@@ -83,8 +83,8 @@ pub fn analyze(parse_tree: ParseTree) -> AnalyzeResult {
 }
 
 fn analyze_table(
-    schema: Option<&Schema>,
-    table: &Table,
+    schema: Option<&SchemaNode>,
+    table: &TableNode,
     refset: &mut RefSet,
 ) -> Result<(), AnalyzeError> {
     // TODO: This is mostly copy-pasta
@@ -115,9 +115,9 @@ fn analyze_table(
             if !refset.insert_record_scope(&table_scope, name) {
                 return Err(AnalyzeError {
                     kind: AnalyzeErrorKind::DuplicateRecord {
-                        scope: table_scope,
                         record: name.clone(),
                     },
+                    position: record.position,
                 });
             }
         }
@@ -127,7 +127,7 @@ fn analyze_table(
 }
 
 fn analyze_record(
-    record: &Record,
+    record: &RecordNode,
     refset: &RefSet,
     parent_scope: &str,
 ) -> Result<(), AnalyzeError> {
@@ -137,9 +137,9 @@ fn analyze_record(
         if !attrnames.insert(&attr.name) {
             return Err(AnalyzeError {
                 kind: AnalyzeErrorKind::DuplicateColumn {
-                    scope: parent_scope.to_owned(),
                     column: attr.name.clone(),
                 },
+                position: attr.position,
             });
         }
 
@@ -152,6 +152,7 @@ fn analyze_record(
                         kind: AnalyzeErrorKind::ColumnNotFound {
                             column: c.column.clone(),
                         },
+                        position: attr.position,
                     });
                 }
                 continue;
@@ -166,6 +167,7 @@ fn analyze_record(
                             kind: AnalyzeErrorKind::RecordNotFound {
                                 record: format!("{}.{}", scope, s.record),
                             },
+                            position: attr.position,
                         });
                     }
                 }
@@ -175,6 +177,7 @@ fn analyze_record(
                             kind: AnalyzeErrorKind::RecordNotFound {
                                 record: format!("{}.{}", t.table, t.record),
                             },
+                            position: attr.position,
                         });
                     }
                 }
@@ -185,6 +188,7 @@ fn analyze_record(
                                 kind: AnalyzeErrorKind::RecordNotFound {
                                     record: r.record.clone(),
                                 },
+                                position: attr.position,
                             });
                         }
                         Some(scopes) => {
@@ -204,6 +208,7 @@ fn analyze_record(
                                     kind: AnalyzeErrorKind::AmbiguousRecord {
                                         record: r.record.clone(),
                                     },
+                                    position: attr.position,
                                 });
                             }
                         }

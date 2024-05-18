@@ -61,8 +61,8 @@ mod tests {
         assert_eq!(
             parse(input),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Schema(Box::new(Schema {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Schema(Box::new(SchemaNode {
+                    identity: StructuralNodeIdentity {
                         alias: None,
                         name: "my_schema".to_owned(),
                     },
@@ -91,8 +91,8 @@ mod tests {
         assert_eq!(
             parse(input),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Schema(Box::new(Schema {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Schema(Box::new(SchemaNode {
+                    identity: StructuralNodeIdentity {
                         alias: Some("some_alias".to_owned()),
                         name: "my_other_schema".to_owned(),
                     },
@@ -131,8 +131,8 @@ mod tests {
         assert_eq!(
             parse(input),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Table(Box::new(Table {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Table(Box::new(TableNode {
+                    identity: StructuralNodeIdentity {
                         alias: None,
                         name: "my_table".to_owned(),
                     },
@@ -179,8 +179,8 @@ mod tests {
         assert_eq!(
             parse(input.into_iter()),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Table(Box::new(Table {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Table(Box::new(TableNode {
+                    identity: StructuralNodeIdentity {
                         alias: Some("another_alias".to_owned()),
                         name: "my_other_table".to_owned(),
                     },
@@ -204,13 +204,13 @@ mod tests {
         assert_eq!(
             parse(input),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Schema(Box::new(Schema {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Schema(Box::new(SchemaNode {
+                    identity: StructuralNodeIdentity {
                         alias: None,
                         name: "myschema".to_owned(),
                     },
-                    nodes: vec![Table {
-                        identity: StructuralIdentity {
+                    nodes: vec![TableNode {
+                        identity: StructuralNodeIdentity {
                             alias: None,
                             name: "mytable".to_owned(),
                         },
@@ -235,13 +235,13 @@ mod tests {
         assert_eq!(
             parse(input),
             Ok(ParseTree {
-                nodes: vec![StructuralNode::Schema(Box::new(Schema {
-                    identity: StructuralIdentity {
+                nodes: vec![StructuralNode::Schema(Box::new(SchemaNode {
+                    identity: StructuralNodeIdentity {
                         alias: Some("s1".to_owned()),
                         name: "myschema".to_owned(),
                     },
-                    nodes: vec![Table {
-                        identity: StructuralIdentity {
+                    nodes: vec![TableNode {
+                        identity: StructuralNodeIdentity {
                             alias: Some("t1".to_owned()),
                             name: "mytable".to_owned(),
                         },
@@ -275,35 +275,35 @@ mod tests {
             parse(input),
             Ok(ParseTree {
                 nodes: vec![
-                    StructuralNode::Schema(Box::new(Schema {
-                        identity: StructuralIdentity {
+                    StructuralNode::Schema(Box::new(SchemaNode {
+                        identity: StructuralNodeIdentity {
                             alias: None,
                             name: "s1".to_owned(),
                         },
-                        nodes: vec![Table {
-                            identity: StructuralIdentity {
+                        nodes: vec![TableNode {
+                            identity: StructuralNodeIdentity {
                                 alias: None,
                                 name: "t1".to_owned(),
                             },
                             nodes: vec![
-                                Record {
+                                RecordNode {
                                     name: Some("record1".to_owned()),
                                     nodes: Vec::new(),
                                 },
-                                Record::default(),
-                                Record::default(),
+                                RecordNode::default(),
+                                RecordNode::default(),
                             ],
                         },],
                     })),
-                    StructuralNode::Table(Box::new(Table {
-                        identity: StructuralIdentity {
+                    StructuralNode::Table(Box::new(TableNode {
+                        identity: StructuralNodeIdentity {
                             alias: None,
                             name: "t2".to_owned(),
                         },
                         nodes: vec![
-                            Record::default(),
-                            Record::default(),
-                            Record {
+                            RecordNode::default(),
+                            RecordNode::default(),
+                            RecordNode {
                                 name: Some("record2".to_owned()),
                                 nodes: Vec::new(),
                             },
@@ -354,28 +354,28 @@ mod tests {
         "#,
         );
 
-        let t1 = Table {
-            identity: StructuralIdentity {
+        let t1 = TableNode {
+            identity: StructuralNodeIdentity {
                 alias: None,
                 name: "t1".to_owned(),
             },
             nodes: vec![
-                Record {
+                RecordNode {
                     name: Some("record1".to_owned()),
                     nodes: vec![
-                        Attribute {
+                        AttributeNode {
                             name: "col1".to_owned(),
                             value: Value::Number(Box::new("123".to_owned())),
                         },
-                        Attribute {
+                        AttributeNode {
                             name: "col2".to_owned(),
                             value: Value::Bool(true),
                         },
-                        Attribute {
+                        AttributeNode {
                             name: "col3".to_owned(),
                             value: Value::Text(Box::new("'hello!'".to_owned())),
                         },
-                        Attribute {
+                        AttributeNode {
                             name: "col4".to_owned(),
                             value: Value::Reference(Box::new(Reference {
                                 schema: None,
@@ -386,9 +386,9 @@ mod tests {
                         },
                     ],
                 },
-                Record {
+                RecordNode {
                     name: None,
-                    nodes: vec![Attribute {
+                    nodes: vec![AttributeNode {
                         name: "col".to_owned(),
                         value: Value::Reference(Box::new(Reference {
                             schema: None,
@@ -400,15 +400,15 @@ mod tests {
                 },
             ],
         };
-        let t2 = Table {
-            identity: StructuralIdentity {
+        let t2 = TableNode {
+            identity: StructuralNodeIdentity {
                 alias: None,
                 name: "t2".to_owned(),
             },
             nodes: vec![
-                Record {
+                RecordNode {
                     name: None,
-                    nodes: vec![Attribute {
+                    nodes: vec![AttributeNode {
                         name: "colx".to_owned(),
                         value: Value::Reference(Box::new(Reference {
                             schema: Some("s1".to_owned()),
@@ -418,9 +418,9 @@ mod tests {
                         })),
                     }],
                 },
-                Record {
+                RecordNode {
                     name: None,
-                    nodes: vec![Attribute {
+                    nodes: vec![AttributeNode {
                         name: "coly".to_owned(),
                         value: Value::Reference(Box::new(Reference {
                             // TODO: Should these actually be explicitly quoted?
@@ -431,24 +431,24 @@ mod tests {
                         })),
                     }],
                 },
-                Record {
+                RecordNode {
                     name: Some("record2".to_owned()),
-                    nodes: vec![Attribute {
+                    nodes: vec![AttributeNode {
                         name: "col".to_owned(),
                         value: Value::Number(Box::new("1234".to_owned())),
                     }],
                 },
-                Record::default(),
+                RecordNode::default(),
             ],
         };
-        let t3 = Table {
-            identity: StructuralIdentity {
+        let t3 = TableNode {
+            identity: StructuralNodeIdentity {
                 alias: None,
                 name: "t3".to_owned(),
             },
-            nodes: vec![Record {
+            nodes: vec![RecordNode {
                 name: None,
-                nodes: vec![Attribute {
+                nodes: vec![AttributeNode {
                     name: "col".to_owned(),
                     value: Value::Reference(Box::new(Reference {
                         schema: None,
@@ -462,8 +462,8 @@ mod tests {
 
         let expected = Ok(ParseTree {
             nodes: vec![
-                StructuralNode::Schema(Box::new(Schema {
-                    identity: StructuralIdentity {
+                StructuralNode::Schema(Box::new(SchemaNode {
+                    identity: StructuralNodeIdentity {
                         alias: None,
                         name: "s1".to_owned(),
                     },
