@@ -1,3 +1,5 @@
+use crate::Position;
+
 #[derive(Debug, Default, PartialEq)]
 pub struct ParseTree {
     pub nodes: Vec<StructuralNode>,
@@ -5,31 +7,31 @@ pub struct ParseTree {
 
 #[derive(Debug, PartialEq)]
 pub enum StructuralNode {
-    Schema(Box<Schema>),
-    Table(Box<Table>),
+    Schema(Box<SchemaNode>),
+    Table(Box<TableNode>),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct StructuralIdentity {
+pub struct StructuralNodeIdentity {
     pub alias: Option<String>,
     pub name: String,
 }
 
-impl StructuralIdentity {
+impl StructuralNodeIdentity {
     pub fn new(name: String, alias: Option<String>) -> Self {
         Self { alias, name }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Schema {
-    pub identity: StructuralIdentity,
-    pub nodes: Vec<Table>,
+pub struct SchemaNode {
+    pub identity: StructuralNodeIdentity,
+    pub nodes: Vec<TableNode>,
 }
 
-impl Schema {
+impl SchemaNode {
     pub fn new(name: String, alias: Option<String>) -> Self {
-        let identity = StructuralIdentity::new(name, alias);
+        let identity = StructuralNodeIdentity::new(name, alias);
         Self {
             identity,
             nodes: Vec::new(),
@@ -38,14 +40,14 @@ impl Schema {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Table {
-    pub identity: StructuralIdentity,
-    pub nodes: Vec<Record>,
+pub struct TableNode {
+    pub identity: StructuralNodeIdentity,
+    pub nodes: Vec<RecordNode>,
 }
 
-impl Table {
+impl TableNode {
     pub fn new(name: String, alias: Option<String>) -> Self {
-        let identity = StructuralIdentity::new(name, alias);
+        let identity = StructuralNodeIdentity::new(name, alias);
         Self {
             identity,
             nodes: Vec::new(),
@@ -54,29 +56,32 @@ impl Table {
 }
 
 #[derive(Debug, Default, PartialEq)]
-pub struct Record {
+pub struct RecordNode {
     pub name: Option<String>,
-    pub nodes: Vec<Attribute>,
+    pub nodes: Vec<AttributeNode>,
+    pub position: Position,
 }
 
-impl Record {
-    pub fn new(name: Option<String>) -> Self {
+impl RecordNode {
+    pub fn new(name: Option<String>, position: Position) -> Self {
         Self {
             name,
             nodes: Vec::new(),
+            position,
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Attribute {
+pub struct AttributeNode {
     pub name: String,
     pub value: Value,
+    pub position: Position,
 }
 
-impl Attribute {
-    pub fn new(name: String, value: Value) -> Self {
-        Self { name, value }
+impl AttributeNode {
+    pub fn new(name: String, value: Value, position: Position) -> Self {
+        Self { name, value, position }
     }
 }
 

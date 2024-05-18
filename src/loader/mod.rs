@@ -2,12 +2,12 @@ pub mod error;
 
 use crate::analyzer::ValidatedParseTree;
 use crate::parser::nodes::{
-    Attribute,
+    AttributeNode,
     Reference,
     ReferencedColumn,
-    StructuralIdentity,
+    StructuralNodeIdentity,
     StructuralNode,
-    Table,
+    TableNode,
     Value,
 };
 use error::{ClientError, LoadError};
@@ -46,7 +46,7 @@ impl<'a, 'b> Loader<'a, 'b> {
         }
     }
 
-    fn load_table(&mut self, schema: Option<&StructuralIdentity>, table: &Table) -> LoadResult<()> {
+    fn load_table(&mut self, schema: Option<&StructuralNodeIdentity>, table: &TableNode) -> LoadResult<()> {
         // TODO: A lot of this is copy-pasta from analyzer
         //
         // *something something* visitor pattern
@@ -89,7 +89,7 @@ impl<'a, 'b> Loader<'a, 'b> {
         &mut self,
         qualified_table_name: &str,
         table_scope: &str,
-        attributes: &[Attribute],
+        attributes: &[AttributeNode],
     ) -> Result<SimpleQueryRow, LoadError> {
         let statement = InsertStatement::build(self.transaction)
             .attributes(attributes)
@@ -176,7 +176,7 @@ struct InsertStatementBuilder<
 where
     'fragment2: 'fragment1
 {
-    attributes: &'attribute [Attribute],
+    attributes: &'attribute [AttributeNode],
     attribute_indexes: HashMap<&'attribute str, usize>,
     current_scope: &'current_scope str,
     fragment_runner: FragmentRunner<'fragment1, 'fragment2>,
@@ -185,7 +185,7 @@ where
 }
 
 impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> {
-    fn attributes(mut self, attributes: &'a [Attribute]) -> Self {
+    fn attributes(mut self, attributes: &'a [AttributeNode]) -> Self {
         self.attributes = attributes;
         self.attribute_indexes = HashMap::new();
         self
@@ -239,7 +239,7 @@ impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> 
         Ok(InsertStatement(statement))
     }
 
-    fn write_value(&mut self, attribute: &Attribute, out: &mut String) -> Result<(), LoadError> {
+    fn write_value(&mut self, attribute: &AttributeNode, out: &mut String) -> Result<(), LoadError> {
         match &attribute.value {
             Value::Bool(b) => out.push_str(&b.to_string()),
             Value::Number(n) => out.push_str(n),
@@ -270,7 +270,7 @@ impl<'a, 'c, 'f1, 'f2, 'q, 'r> InsertStatementBuilder<'a, 'c, 'f1, 'f2, 'q, 'r> 
         Ok(())
     }
 
-    fn follow_ref(&self, attribute: &Attribute, refval: &Reference) -> Result<String, LoadError> {
+    fn follow_ref(&self, attribute: &AttributeNode, refval: &Reference) -> Result<String, LoadError> {
         use ReferencedColumn::*;
 
         let mut col = &attribute.name;

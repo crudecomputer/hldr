@@ -22,10 +22,10 @@ fn defer_to<S: State + 'static>(state: &mut S, ctx: &mut Context, t: Option<Toke
 #[derive(Debug)]
 pub enum StackItem {
     TreeRoot(Box<nodes::ParseTree>),
-    Schema(Box<nodes::Schema>),
-    Table(Box<nodes::Table>),
-    Record(Box<nodes::Record>),
-    Attribute(Box<nodes::Attribute>),
+    Schema(Box<nodes::SchemaNode>),
+    Table(Box<nodes::TableNode>),
+    Record(Box<nodes::RecordNode>),
+    Attribute(Box<nodes::AttributeNode>),
 }
 
 enum PushedTableTo {
@@ -40,22 +40,22 @@ pub struct Context {
 
 impl Context {
     fn push_schema(&mut self, schema_name: String, alias: Option<String>) {
-        let schema = nodes::Schema::new(schema_name, alias);
+        let schema = nodes::SchemaNode::new(schema_name, alias);
         self.stack.push(StackItem::Schema(Box::new(schema)));
     }
 
     fn push_table(&mut self, table_name: String, alias: Option<String>) {
-        let table = nodes::Table::new(table_name, alias);
+        let table = nodes::TableNode::new(table_name, alias);
         self.stack.push(StackItem::Table(Box::new(table)));
     }
 
-    fn push_record(&mut self, record_name: Option<String>) {
-        let record = nodes::Record::new(record_name);
+    fn push_record(&mut self, record_name: Option<String>, position: Position) {
+        let record = nodes::RecordNode::new(record_name, position);
         self.stack.push(StackItem::Record(Box::new(record)));
     }
 
-    fn push_attribute(&mut self, name: String, value: nodes::Value) {
-        let attribute = nodes::Attribute::new(name, value);
+    fn push_attribute(&mut self, name: String, value: nodes::Value, position: Position) {
+        let attribute = nodes::AttributeNode::new(name, value, position);
         self.stack.push(StackItem::Attribute(Box::new(attribute)));
     }
 
@@ -64,35 +64,35 @@ impl Context {
     // unexpected tokens in the token stream. In other words, unless I am woefully
     // mistaken, there should not be any combination of tokens that can result in
     // panics. Instead, bad tokens should always result in parse errors.
-    fn pop_schema_or_panic(&mut self) -> nodes::Schema {
+    fn pop_schema_or_panic(&mut self) -> nodes::SchemaNode {
         match self.stack.pop() {
             Some(StackItem::Schema(schema)) => *schema,
             elt => panic!("expected schema on stack; received {:?}", elt),
         }
     }
 
-    fn pop_table_or_panic(&mut self) -> nodes::Table {
+    fn pop_table_or_panic(&mut self) -> nodes::TableNode {
         match self.stack.pop() {
             Some(StackItem::Table(table)) => *table,
             elt => panic!("expected table on stack; received {:?}", elt),
         }
     }
 
-    fn pop_record_or_panic(&mut self) -> nodes::Record {
+    fn pop_record_or_panic(&mut self) -> nodes::RecordNode {
         match self.stack.pop() {
             Some(StackItem::Record(record)) => *record,
             elt => panic!("expected record on stack; received {:?}", elt),
         }
     }
 
-    fn pop_attribute_or_panic(&mut self) -> nodes::Attribute {
+    fn pop_attribute_or_panic(&mut self) -> nodes::AttributeNode {
         match self.stack.pop() {
             Some(StackItem::Attribute(attribute)) => *attribute,
             elt => panic!("expected attribute on stack; received {:?}", elt),
         }
     }
 
-    fn push_schema_to_root_or_panic(&mut self, schema: nodes::Schema) {
+    fn push_schema_to_root_or_panic(&mut self, schema: nodes::SchemaNode) {
         match self.stack.last_mut() {
             Some(StackItem::TreeRoot(tree)) => {
                 tree.nodes
@@ -102,7 +102,7 @@ impl Context {
         }
     }
 
-    fn push_table_to_parent_or_panic(&mut self, table: nodes::Table) -> PushedTableTo {
+    fn push_table_to_parent_or_panic(&mut self, table: nodes::TableNode) -> PushedTableTo {
         match self.stack.last_mut() {
             Some(StackItem::TreeRoot(tree)) => {
                 let node = nodes::StructuralNode::Table(Box::new(table));
@@ -117,7 +117,7 @@ impl Context {
         }
     }
 
-    fn push_record_to_table_or_panic(&mut self, record: nodes::Record) {
+    fn push_record_to_table_or_panic(&mut self, record: nodes::RecordNode) {
         match self.stack.last_mut() {
             Some(StackItem::Table(table)) => {
                 table.nodes.push(record);
@@ -126,7 +126,7 @@ impl Context {
         }
     }
 
-    fn push_attribute_to_record_or_panic(&mut self, attribute: nodes::Attribute) {
+    fn push_attribute_to_record_or_panic(&mut self, attribute: nodes::AttributeNode) {
         match self.stack.last_mut() {
             Some(StackItem::Record(record)) => {
                 record.nodes.push(attribute);
@@ -367,12 +367,12 @@ mod table_states {
                         PushedTableTo::Schema => to(schema_states::InSchemaScope),
                     }
                 }
-                TokenKind::Identifier(ident) => to(record_states::ReceivedRecordName(ident)),
+                TokenKind::Identifier(ident) => to(record_states::ReceivedRecordName(t.position, ident)),
                 TokenKind::Symbol(Symbol::Underscore) => {
                     to(record_states::ReceivedExplicitAnonymousRecord)
                 }
                 TokenKind::Symbol(Symbol::ParenLeft) => {
-                    ctx.push_record(None);
+                    ctx.push_record(None, t.position);
                     to(record_states::InRecordScope)
                 }
                 TokenKind::LineSep => to(InTableScope),
@@ -387,18 +387,18 @@ mod record_states {
 
     /// State after receiving a record name in the table scope.
     #[derive(Debug)]
-    pub struct ReceivedRecordName(pub String);
+    pub struct ReceivedRecordName(pub Position, pub String);
 
     impl State for ReceivedRecordName {
         fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
-            let record_name = mem::take(&mut self.0);
+            let record_name = mem::take(&mut self.1);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
             };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
-                    ctx.push_record(Some(record_name));
+                    ctx.push_record(Some(record_name), self.0);
                     to(InRecordScope)
                 }
                 _ => Err(ParseError::exp_scope(t)),
@@ -418,7 +418,7 @@ mod record_states {
             };
             match t.kind {
                 TokenKind::Symbol(Symbol::ParenLeft) => {
-                    ctx.push_record(None);
+                    ctx.push_record(None, t.position);
                     to(InRecordScope)
                 }
                 _ => Err(ParseError::exp_scope(t)),
@@ -442,7 +442,7 @@ mod record_states {
                     to(table_states::InTableScope)
                 }
                 TokenKind::Identifier(ident) | TokenKind::QuotedIdentifier(ident) => {
-                    to(attribute_states::ReceivedAttributeName(ident))
+                    to(attribute_states::ReceivedAttributeName(t.position, ident))
                 }
                 TokenKind::LineSep => to(InRecordScope),
                 _ => Err(ParseError::in_record(t)),
@@ -463,11 +463,11 @@ mod attribute_states {
     }
 
     #[derive(Debug)]
-    pub struct ReceivedAttributeName(pub String);
+    pub struct ReceivedAttributeName(pub Position, pub String);
 
     impl State for ReceivedAttributeName {
         fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
-            let attribute_name = mem::take(&mut self.0);
+            let attribute_name = mem::take(&mut self.1);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
@@ -475,23 +475,23 @@ mod attribute_states {
             match t.kind {
                 TokenKind::Bool(b) => {
                     let value = nodes::Value::Bool(b);
-                    ctx.push_attribute(attribute_name, value);
+                    ctx.push_attribute(attribute_name, value, self.0);
                     to(ReceivedAttributeValue)
                 }
                 TokenKind::Number(n) => {
                     let value = nodes::Value::Number(n);
-                    ctx.push_attribute(attribute_name, value);
+                    ctx.push_attribute(attribute_name, value, self.0);
                     to(ReceivedAttributeValue)
                 }
                 TokenKind::SqlFragment(s) => {
                     let value = nodes::Value::SqlFragment(s);
-                    ctx.push_attribute(attribute_name, value);
+                    ctx.push_attribute(attribute_name, value, self.0);
                     to(ReceivedAttributeValue)
                 }
-                TokenKind::Symbol(Symbol::AtSign) => to(ReceivedReferenceStart(attribute_name)),
-                TokenKind::Text(t) => {
-                    let value = nodes::Value::Text(t);
-                    ctx.push_attribute(attribute_name, value);
+                TokenKind::Symbol(Symbol::AtSign) => to(ReceivedReferenceStart(t.position, attribute_name)),
+                TokenKind::Text(text) => {
+                    let value = nodes::Value::Text(text);
+                    ctx.push_attribute(attribute_name, value, self.0);
                     to(ReceivedAttributeValue)
                 }
                 _ => Err(ParseError::exp_value(t)),
@@ -500,11 +500,11 @@ mod attribute_states {
     }
 
     #[derive(Debug)]
-    pub struct ReceivedReferenceStart(pub String);
+    pub struct ReceivedReferenceStart(pub Position, pub String);
 
     impl State for ReceivedReferenceStart {
         fn receive(&mut self, _ctx: &mut Context, t: Option<Token>) -> ParseResult {
-            let attribute_name = mem::take(&mut self.0);
+            let attribute_name = mem::take(&mut self.1);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
@@ -516,7 +516,7 @@ mod attribute_states {
                         quoted,
                         value: ident,
                     }];
-                    to(ReceivedReferenceIdentifier(attribute_name, identifiers))
+                    to(ReceivedReferenceIdentifier(self.0, attribute_name, identifiers))
                 }
                 _ => Err(ParseError::exp_ident(t)),
             }
@@ -524,19 +524,19 @@ mod attribute_states {
     }
 
     #[derive(Debug)]
-    pub struct ReceivedReferenceIdentifier(String, Vec<Identifier>);
+    pub struct ReceivedReferenceIdentifier(Position, String, Vec<Identifier>);
 
     impl State for ReceivedReferenceIdentifier {
         fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
-            let attribute_name = mem::take(&mut self.0);
-            let identifiers = mem::take(&mut self.1);
+            let attribute_name = mem::take(&mut self.1);
+            let identifiers = mem::take(&mut self.2);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
             };
             match t.kind {
                 TokenKind::Symbol(Symbol::Period) if identifiers.len() < 4 => {
-                    to(ReceivedReferenceSeparator(attribute_name, identifiers))
+                    to(ReceivedReferenceSeparator(self.0, attribute_name, identifiers))
                 }
                 TokenKind::LineSep
                 | TokenKind::Symbol(Symbol::Comma)
@@ -544,9 +544,10 @@ mod attribute_states {
                     if identifiers.len() < 5 =>
                 {
                     let reference = identifiers_to_explicit_reference(t.position, identifiers)?;
-                    let attribute = nodes::Attribute {
+                    let attribute = nodes::AttributeNode {
                         name: attribute_name,
                         value: nodes::Value::Reference(reference),
+                        position: self.0,
                     };
                     ctx.push_attribute_to_record_or_panic(attribute);
 
@@ -565,7 +566,7 @@ mod attribute_states {
     }
 
     #[derive(Debug)]
-    pub struct ReceivedReferenceSeparator(String, Vec<Identifier>);
+    pub struct ReceivedReferenceSeparator(Position, String, Vec<Identifier>);
 
     impl State for ReceivedReferenceSeparator {
         fn receive(&mut self, ctx: &mut Context, t: Option<Token>) -> ParseResult {
@@ -573,8 +574,8 @@ mod attribute_states {
             // already makes so many assumptions about what is on its stack and
             // panics if items are wrong, should these all just be pushing to the
             // `ctx.stack_items` and popping off each step?
-            let attribute_name = mem::take(&mut self.0);
-            let mut identifiers = mem::take(&mut self.1);
+            let attribute_name = mem::take(&mut self.1);
+            let mut identifiers = mem::take(&mut self.2);
             let t = match t {
                 Some(t) => t,
                 None => return Err(ParseError::eof()),
@@ -600,7 +601,7 @@ mod attribute_states {
                         quoted,
                         value: ident,
                     });
-                    to(ReceivedReferenceIdentifier(attribute_name, identifiers))
+                    to(ReceivedReferenceIdentifier(self.0, attribute_name, identifiers))
                 }
                 // This state can, however, determine if it can successfully terminate without
                 // receiving an identifier, since that is allowed for references above the
@@ -611,9 +612,10 @@ mod attribute_states {
                     if identifiers.len() < 4 =>
                 {
                     let reference = identifiers_to_implicit_reference(t.position, identifiers)?;
-                    let attribute = nodes::Attribute {
+                    let attribute = nodes::AttributeNode {
                         name: attribute_name,
                         value: nodes::Value::Reference(reference),
+                        position: t.position,
                     };
                     ctx.push_attribute_to_record_or_panic(attribute);
 
